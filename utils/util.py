@@ -334,49 +334,10 @@ def getKoboValue(amount:str):
     amount = amount.replace(',', '')
     kobo = int(float(amount) * 100)
     return kobo
-# Example usage
-number_str = "1,234,567.89"
-result_str = convert_thousand_separator_to_str(number_str)
-print(result_str)
 
 def decodeId(id:str):
     decoded_bytes = base64.b64decode(id)
     return decoded_bytes.decode('utf-8')
-
-def encrypt(plain_text, key,iv):
-    logger.info(" Encrypts a plain text string using AES-256-CBC ")
-    cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
-    encryptor = cipher.encryptor()
-    padder = padding.PKCS7(algorithms.AES.block_size).padder()
-    padded_text = padder.update(plain_text.encode()) + padder.finalize()
-    encrypted_bytes = encryptor.update(padded_text) + encryptor.finalize()
-    return binascii.hexlify(encrypted_bytes).decode()
-
-def decrypt(encrypted_text, key,iv):
-   logger.info("Decrypts an AES-256-CBC encrypted string using the provided key")
-   encrypted_bytes = binascii.unhexlify(encrypted_text)
-   cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
-   decryptor = cipher.decryptor()
-   decrypted_padded_text = decryptor.update(encrypted_bytes) + decryptor.finalize()
-   unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
-   decrypted_text = unpadder.update(decrypted_padded_text) + unpadder.finalize()
-   return decrypted_text.decode()
-
-class DebitStatusEnum(PythonEnum):
-    APPROVE = "approved"
-    INSUFICIENT = "insuficient Fund"
-    ERROR = "Transaction Error"
-    MERCHANT = "merchant"
-    PROCESSING = "processing"
-
-
-# def verify_password(plain_password, hashed_password):
-#    return pwd_context.verify(plain_password, hashed_password)
-
-
-# def get_password_hash(password):
-#    return pwd_context.hash(password)
-
 
 @lru_cache()
 def get_setting():
