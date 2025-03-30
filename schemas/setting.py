@@ -37,6 +37,7 @@ class SettingResponse(BaseResponse):
 
 class AppSetting(BaseSettings):
     app_name: str
+    app:str
     channel_name: str
     debug: bool
     db_url: str

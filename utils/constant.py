@@ -1,4 +1,5 @@
 UNSUPPORTEDDEVICE = "Device not supported"
+NOTFOUND="Customer details not found"
 SUCCESSPAYMENT = "Payment Successful! Please proceed to generate policy certificate"
 SUCCESS = "Successful"
 PENDING = "pending"
