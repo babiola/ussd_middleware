@@ -24,7 +24,7 @@ router = APIRouter(prefix="/banks",
     tags=["bank"],
 )
 @router.get("", 
-    response_model=BaseResponse,
+    response_model=BanksResponse,
     response_model_exclude_unset=True,name="bank list")
 async def getbanks(
     request: Request,
@@ -39,7 +39,7 @@ async def getbanks(
     except Exception as ex:
         logger.error(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
-        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=str(ex),)
+        return BanksResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=str(ex),)
 @router.post(
     "/name-enquiry",
     response_model=BaseResponse,
