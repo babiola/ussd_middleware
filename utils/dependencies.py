@@ -6,6 +6,7 @@ from typing import Annotated
 from urllib.parse import urlparse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from models.queries import settingQuery,adminQuery
+from services import adminservice
 from schemas.setting import Setting
 from utils.constant import *
 from schemas.admin import Admin
@@ -18,6 +19,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
 logger = logging.getLogger(__name__)
+
+security = HTTPBasic()
 # initialise fast api instance
 middlewares = [
     Middleware(TrustedHostMiddleware, allowed_hosts=util.get_setting().allowed_hosts
@@ -39,14 +42,14 @@ def authenticate_user(
     credentials: HTTPBasicCredentials = Depends(security),
 ):
     logger.info(credentials.username)
-    user = service.getUser(loginId=credentials.username, db=db)
+    user = adminQuery.getAdmin(username=credentials.username, db=db)
     logger.info(user)
     if user:
-        logger.info(user.loginId)
-        correct_username = secrets.compare_digest(credentials.username, user.loginId)
+        logger.info(user.name)
+        correct_username = secrets.compare_digest(credentials.username, user.username)
         correct_password = secrets.compare_digest(credentials.password, user.password)
         if correct_username and correct_password:
-            return Merchant.from_orm(user)
+            return Admin.model_validate(user)
         raise util.UnicornException(
         status=status.HTTP_401_UNAUTHORIZED,
         error={"statusCode": "401", "statusDescription": "Unathorised"},)
@@ -63,8 +66,8 @@ def getTenant(request: Request):
     domain = urlparse(origin).netloc if origin else None
     logger.info(domain)
     return domain
-def getSystemSetting(db: Session = Depends(get_db),tenant:str=Depends(getTenant)):
-    settings = settingQuery.setting(db=db,tenant=tenant)    
+def getSystemSetting(db: Session = Depends(get_db)):
+    settings = settingQuery.setting(db=db)    
     if settings:
         logger.info(settings.app_name)
         return Setting.model_validate(settings)
