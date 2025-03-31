@@ -5,14 +5,15 @@ from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, Request
 from utils.dependencies import middlewares
 from middleware.http import LoggingMiddleware
-from routers import bank,dataplan, customer, transaction
+from routers import bank,dataplan, customer, transaction,product
 
 logging.config.fileConfig("logging.conf", disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 app = FastAPI(debug=False,
-    title="Digital Insurance Platform API",
+    title="USSD MIDDLEWARE",
+    root_path="/api/v1",
     contact={
         "name": "Abiola Bello",
         "url": "https://www.linkedin.com/in/babiola",
@@ -20,6 +21,7 @@ app = FastAPI(debug=False,
     middleware=middlewares,
 )
 app.include_router(customer.router,)
+app.include_router(product.router,)
 app.include_router(bank.router,)
 app.include_router(dataplan.router,)
 app.include_router(transaction.router,)
