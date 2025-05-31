@@ -24,10 +24,10 @@ from schemas.transaction import Transactions,BaseResponse
 logger = logging.getLogger(__name__)
 
 
-router = APIRouter(prefix="/transactions",tags=["transactions"])
+router = APIRouter()
 
 # transaction
-@router.get("", 
+@router.get("/ministatement", 
     response_model=Transactions,
     response_model_exclude_unset=True,name="get customer transactions")
 async def get_transactions(
@@ -89,78 +89,3 @@ async def get_transaction(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
             statusDescription=str(ex),
         )
-@router.post(
-    "/buy-airtime",
-    response_model=BaseResponse,
-    response_model_exclude_unset=True,
-    name="Open account"
-)
-async def post_customer_open_new_account(
-    request: Request,
-    responses: Response,
-    user: Annotated[Customer, Depends(authenticate_user)],
-    setting: Annotated[Setting, Depends(getSystemSetting)],
-    db: Annotated[Session, Depends(get_db)],
-    background_task: BackgroundTasks,
-):
-    try:
-        if user:
-            return customerservice.getCustomer(
-                request=request,
-                response=responses,
-                setting=setting,tenant=tenant,
-                db=db,
-                user=user,
-                background_task=background_task,
-            )
-        else:
-            responses.status_code = status.HTTP_400_BAD_REQUEST
-            return BaseResponse(
-                statusCode=str(status.HTTP_400_BAD_REQUEST),
-                statusDescription=INVALIDACCOUNT,
-            )
-    except Exception as ex:
-        logger.error(ex)
-        responses.status_code = status.HTTP_400_BAD_REQUEST
-        return BaseResponse(
-            statusCode=str(status.HTTP_400_BAD_REQUEST),
-            statusDescription=SYSTEMBUSY,
-        )
-@router.post(
-    "/buy-data",
-    response_model=BaseResponse,
-    response_model_exclude_unset=True,
-    name="Open account"
-)
-async def post_customer_open_new_account(
-    request: Request,
-    responses: Response,
-    user: Annotated[Customer, Depends(authenticate_user)],
-    setting: Annotated[Setting, Depends(getSystemSetting)],
-    db: Annotated[Session, Depends(get_db)],
-    background_task: BackgroundTasks,
-):
-    try:
-        if user:
-            return customerservice.getCustomer(
-                request=request,
-                response=responses,
-                setting=setting,tenant=tenant,
-                db=db,
-                user=user,
-                background_task=background_task,
-            )
-        else:
-            responses.status_code = status.HTTP_400_BAD_REQUEST
-            return BaseResponse(
-                statusCode=str(status.HTTP_400_BAD_REQUEST),
-                statusDescription=INVALIDACCOUNT,
-            )
-    except Exception as ex:
-        logger.error(ex)
-        responses.status_code = status.HTTP_400_BAD_REQUEST
-        return BaseResponse(
-            statusCode=str(status.HTTP_400_BAD_REQUEST),
-            statusDescription=SYSTEMBUSY,
-        )
- 
