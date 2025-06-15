@@ -202,7 +202,6 @@ async def get_customer_balance(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
             statusDescription=SYSTEMBUSY,
         )
-
 @router.post(
     "/enrolment",
     response_model=CustomerResponse,
@@ -239,8 +238,6 @@ async def post_customer_enable_ussd_profile(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
             statusDescription=SYSTEMBUSY,
         )
-
-
 @router.post(
     "/link/{event}",
     response_model=CustomerResponse,
@@ -278,7 +275,6 @@ async def update_account_by_event(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
             statusDescription=SYSTEMBUSY,
         )
-
 @router.post(
     "/deactivate-ussd",
     response_model=CustomerResponse,
@@ -392,4 +388,3 @@ async def delete_customer(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
             statusDescription=SYSTEMBUSY,
         )
-
