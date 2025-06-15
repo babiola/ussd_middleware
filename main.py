@@ -20,11 +20,10 @@ app = FastAPI(debug=False,
     },
     middleware=middlewares,
 )
-app.include_router(customer.router,)
-app.include_router(product.router,)
-app.include_router(bank.router,)
-app.include_router(dataplan.router,)
-app.include_router(transaction.router,)
+app.include_router(customer.router,prefix="/account",tags=['Account'])
+app.include_router(product.router,tags=['Product'])
+app.include_router(bank.router,tags=['Bank'])
+app.include_router(transaction.router,prefix="/transaction",tags=['Statement'])
 app.mount("/static", StaticFiles(directory="views"), name="static")
 app.add_middleware(LoggingMiddleware)
 @app.exception_handler(util.UnicornException)

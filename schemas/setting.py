@@ -1,6 +1,6 @@
 
 from pydantic import BaseModel
-from schemas.response import BaseResponse
+from schemas.base import BaseResponse
 from typing import Optional, Union,List,Sequence
 from pydantic_settings import BaseSettings,SettingsConfigDict
 
@@ -15,8 +15,15 @@ class SettingBase(BaseModel):
     mail_port: Union[str, None] = None
     mail_server:  Union[str, None] = None
     mail_from_name:  Union[str, None] = None
+    bvn_base_url:  Union[str, None] = None
+    bank_bank_url:  Union[str, None] = None
     paystack_url:  Union[str, None] = None
     paystack_token:  Union[str, None] = None
+    bankone_url: Union[str, None] = None
+    bankone_token: Union[str, None] = None
+    bankone_inst_code: Union[str, None] = None
+    bankone_cust_gl: Union[str, None] = None
+    bankone_gl_cust: Union[str, None] = None
 
 
 class SettingRequest(SettingBase):
@@ -46,5 +53,6 @@ class AppSetting(BaseSettings):
     access_token_expire_minutes: int
     secret_key: str
     algorithm: str
+    bank_url:str
 
     model_config = SettingsConfigDict(env_file=".env")

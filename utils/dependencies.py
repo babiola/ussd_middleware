@@ -38,6 +38,7 @@ device_exception = util.UnicornException(
         error={"statusCode": str(status.HTTP_401_UNAUTHORIZED), "statusDescription": UNSUPPORTEDDEVICE},
     )
 def authenticate_user(
+        request: Request,
     db: Annotated[Session, Depends(get_db)],
     credentials: HTTPBasicCredentials = Depends(security),
 ):
@@ -49,14 +50,14 @@ def authenticate_user(
         correct_username = secrets.compare_digest(credentials.username, user.username)
         correct_password = secrets.compare_digest(credentials.password, user.password)
         if correct_username and correct_password:
-            return Admin.model_validate(user)
+            if util.validateIP(request=request, allowed=user.ips):
+                return Admin.model_validate(user)
         raise util.UnicornException(
         status=status.HTTP_401_UNAUTHORIZED,
         error={"statusCode": "401", "statusDescription": "Unathorised"},)
     raise util.UnicornException(
         status=status.HTTP_401_UNAUTHORIZED,
         error={"statusCode": "401", "statusDescription": "Unathorised"},)
-
 def getTenant(request: Request):
     appsetting = util.get_setting().app
     if appsetting == "dev":

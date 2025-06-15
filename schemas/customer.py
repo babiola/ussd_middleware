@@ -3,7 +3,7 @@ from utils import util
 from typing import Union,List
 from schemas.account import Account
 from pydantic import BaseModel,validator
-from schemas.response import BaseResponse
+from schemas.base import BaseResponse
 
 class CustomerBase(BaseModel):
     active: bool
@@ -21,6 +21,17 @@ class Customer(CustomerBase):
     class Config:
         from_attributes = True
         populate_by_name = True
+class BvnRequest(BaseModel):
+    bvn: str
+    dob: str
+    msisdn: str
+    telco:str
+    sessionId:str
+class OpenAccountRequest(BaseModel):
+    firstName: str
+    lastName: str
+    middleName: str
+
 class CreatePINRequest(BaseModel):
     pin: str
     confirmPin: str
@@ -28,6 +39,7 @@ class ChangePINRequest(BaseModel):
     oldPin: str
     pin: str
     confirmPin: str
+
 class CustomersResponse(BaseResponse):
     data: Union[List[Customer],None] = None
 class CustomerResponse(BaseResponse):
