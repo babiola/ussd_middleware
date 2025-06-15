@@ -19,8 +19,7 @@ from utils import util
 import logging
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/accounts",
-    tags=["account"],
+router = APIRouter(
 )
 @router.get(
     "/{msisdn}",
@@ -60,12 +59,155 @@ async def get_customer(
             statusDescription=SYSTEMBUSY,
         )
 @router.post(
-    "/open",
+    "/bvn-verified",
+    response_model=BaseResponse,
+    response_model_exclude_unset=True,
+    name="Verify customer bvn details"
+)
+async def post_customer_bvn_verification(
+    payload:BvnRequest,
+    request: Request,
+    responses: Response,
+    user: Annotated[Customer, Depends(authenticate_user)],
+    setting: Annotated[Setting, Depends(getSystemSetting)],
+):
+    try:
+        if user:
+            if util.validateIP(request=request, allowed=user.ips):
+                return customerservice.getBvnDetails(
+                payload=payload,
+                response=responses,
+                setting=setting,
+            )
+        else:
+            responses.status_code = status.HTTP_400_BAD_REQUEST
+            return BaseResponse(
+                statusCode=str(status.HTTP_400_BAD_REQUEST),
+                statusDescription=SYSTEMBUSY,
+            )
+    except Exception as ex:
+        logger.error(ex)
+        responses.status_code = status.HTTP_400_BAD_REQUEST
+        return BaseResponse(
+            statusCode=str(status.HTTP_400_BAD_REQUEST),
+            statusDescription=SYSTEMBUSY,
+        )
+@router.post(
+    "/create-customer",
+    response_model=CustomerResponse,
+    response_model_exclude_unset=True,
+    name="Open account"
+)
+async def create_customer(
+    payload:BvnRequest,
+    request: Request,
+    responses: Response,
+    user: Annotated[Customer, Depends(authenticate_user)],
+    setting: Annotated[Setting, Depends(getSystemSetting)],
+    db: Annotated[Session, Depends(get_db)],
+):
+    try:
+        if user:
+            return customerservice.create_customer(
+                db=db,
+                payload=payload,
+                response=responses,
+                setting=setting,
+            )
+        else:
+            responses.status_code = status.HTTP_400_BAD_REQUEST
+            return BaseResponse(
+                statusCode=str(status.HTTP_400_BAD_REQUEST),
+                statusDescription=INVALIDACCOUNT,
+            )
+    except Exception as ex:
+        logger.error(ex)
+        responses.status_code = status.HTTP_400_BAD_REQUEST
+        return BaseResponse(
+            statusCode=str(status.HTTP_400_BAD_REQUEST),
+            statusDescription=SYSTEMBUSY,
+        )
+@router.post(
+    "/create-account",
     response_model=CustomerResponse,
     response_model_exclude_unset=True,
     name="Open account"
 )
 async def post_customer_open_new_account(
+    payload:OpenAccountRequest,
+    request: Request,
+    response: Response,
+    user: Annotated[Customer, Depends(authenticate_user)],
+    setting: Annotated[Setting, Depends(getSystemSetting)],
+    db: Annotated[Session, Depends(get_db)],
+    background_task: BackgroundTasks,
+):
+    try:
+        if user:
+            return customerservice.open_account(
+                db=db,
+                request=request,
+                payload=payload,
+                response=response,
+                setting=setting,
+                background_task=background_task,
+            )
+        else:
+            response.status_code = status.HTTP_400_BAD_REQUEST
+            return BaseResponse(
+                statusCode=str(status.HTTP_400_BAD_REQUEST),
+                statusDescription=INVALIDACCOUNT,
+            )
+    except Exception as ex:
+        logger.error(ex)
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return BaseResponse(
+            statusCode=str(status.HTTP_400_BAD_REQUEST),
+            statusDescription=SYSTEMBUSY,
+        )
+@router.get(
+    "/balance/{accountNumber}",
+    response_model=CustomerResponse,
+    response_model_exclude_unset=True,
+)
+async def get_customer_balance(
+    msisdn:str,
+    request: Request,
+    response: Response,
+    user: Annotated[Admin, Depends(authenticate_user)],
+    setting: Annotated[Setting, Depends(getSystemSetting)],
+    db: Annotated[Session, Depends(get_db)],
+    background_task: BackgroundTasks,
+):
+    try:
+        if user:
+            return customerservice.profile(
+                request=request,
+                response=response,
+                setting=setting,
+                db=db,
+                msisdn=msisdn,
+                background_task=background_task,
+            )
+        else:
+            response.status_code = status.HTTP_400_BAD_REQUEST
+            return CustomerResponse(
+                statusCode=str(status.HTTP_400_BAD_REQUEST),
+                statusDescription=INVALIDACCOUNT,
+            )
+    except Exception as ex:
+        logger.error(ex)
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return CustomerResponse(
+            statusCode=str(status.HTTP_400_BAD_REQUEST),
+            statusDescription=SYSTEMBUSY,
+        )
+@router.post(
+    "/enrolment",
+    response_model=CustomerResponse,
+    response_model_exclude_unset=True,
+)
+async def post_customer_enable_ussd_profile(
     request: Request,
     responses: Response,
     user: Annotated[Customer, Depends(authenticate_user)],
@@ -78,7 +220,7 @@ async def post_customer_open_new_account(
             return customerservice.getCustomer(
                 request=request,
                 response=responses,
-                setting=setting,tenant=tenant,
+                setting=setting,
                 db=db,
                 user=user,
                 background_task=background_task,
@@ -96,14 +238,13 @@ async def post_customer_open_new_account(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
             statusDescription=SYSTEMBUSY,
         )
-    
 @router.post(
-    "/signup",
+    "/link/{event}",
     response_model=CustomerResponse,
     response_model_exclude_unset=True,
-    name="Open account"
 )
-async def post_customer_enable_ussd_profile(
+async def update_account_by_event(
+    event:str,
     request: Request,
     responses: Response,
     user: Annotated[Customer, Depends(authenticate_user)],
@@ -116,7 +257,82 @@ async def post_customer_enable_ussd_profile(
             return customerservice.getCustomer(
                 request=request,
                 response=responses,
-                setting=setting,tenant=tenant,
+                setting=setting,
+                db=db,
+                user=user,
+                background_task=background_task,
+            )
+        else:
+            responses.status_code = status.HTTP_400_BAD_REQUEST
+            return BaseResponse(
+                statusCode=str(status.HTTP_400_BAD_REQUEST),
+                statusDescription=INVALIDACCOUNT,
+            )
+    except Exception as ex:
+        logger.error(ex)
+        responses.status_code = status.HTTP_400_BAD_REQUEST
+        return BaseResponse(
+            statusCode=str(status.HTTP_400_BAD_REQUEST),
+            statusDescription=SYSTEMBUSY,
+        )
+@router.post(
+    "/deactivate-ussd",
+    response_model=CustomerResponse,
+    response_model_exclude_unset=True,
+)
+async def disable_customer_ussd_profile(
+    request: Request,
+    responses: Response,
+    user: Annotated[Customer, Depends(authenticate_user)],
+    setting: Annotated[Setting, Depends(getSystemSetting)],
+    db: Annotated[Session, Depends(get_db)],
+    background_task: BackgroundTasks,
+):
+    try:
+        if user:
+            return customerservice.getCustomer(
+                request=request,
+                response=responses,
+                setting=setting,
+                db=db,
+                user=user,
+                background_task=background_task,
+            )
+        else:
+            responses.status_code = status.HTTP_400_BAD_REQUEST
+            return BaseResponse(
+                statusCode=str(status.HTTP_400_BAD_REQUEST),
+                statusDescription=INVALIDACCOUNT,
+            )
+    except Exception as ex:
+        logger.error(ex)
+        responses.status_code = status.HTTP_400_BAD_REQUEST
+        return BaseResponse(
+            statusCode=str(status.HTTP_400_BAD_REQUEST),
+            statusDescription=SYSTEMBUSY,
+        )
+@router.patch(
+    "/{msisdn}/update",
+    response_model=CustomerResponse,
+    response_model_exclude_unset=True,
+    name="Update Customer details"
+)
+async def update_customer(
+    request: Request,
+    responses: Response,
+    
+    user: Annotated[Customer, Depends(authenticate_user)],
+    setting: Annotated[Setting, Depends(getSystemSetting)],
+    db: Annotated[Session, Depends(get_db)],
+    background_task: BackgroundTasks,
+):
+    try:
+        if user:
+            return customerservice.getCustomer(
+                request=request,
+                
+                response=responses,
+                setting=setting,
                 db=db,
                 user=user,
                 background_task=background_task,
@@ -154,89 +370,7 @@ async def delete_customer(
             return customerservice.getCustomer(
                 request=request,
                 response=responses,
-                setting=setting,tenant=tenant,
-                db=db,
-                user=user,
-                background_task=background_task,
-            )
-        else:
-            responses.status_code = status.HTTP_400_BAD_REQUEST
-            return BaseResponse(
-                statusCode=str(status.HTTP_400_BAD_REQUEST),
-                statusDescription=INVALIDACCOUNT,
-            )
-    except Exception as ex:
-        logger.error(ex)
-        responses.status_code = status.HTTP_400_BAD_REQUEST
-        return BaseResponse(
-            statusCode=str(status.HTTP_400_BAD_REQUEST),
-            statusDescription=SYSTEMBUSY,
-        )
-
-
-
-
-@router.patch(
-    "/{msisdn}/update",
-    response_model=CustomerResponse,
-    response_model_exclude_unset=True,
-    name="Update Customer details"
-)
-async def update_customer(
-    request: Request,
-    responses: Response,
-    
-    user: Annotated[Customer, Depends(authenticate_user)],
-    setting: Annotated[Setting, Depends(getSystemSetting)],
-    db: Annotated[Session, Depends(get_db)],
-    background_task: BackgroundTasks,
-):
-    try:
-        if user:
-            return customerservice.getCustomer(
-                request=request,
-                tenant=tenant,
-                response=responses,
                 setting=setting,
-                db=db,
-                user=user,
-                background_task=background_task,
-            )
-        else:
-            responses.status_code = status.HTTP_400_BAD_REQUEST
-            return BaseResponse(
-                statusCode=str(status.HTTP_400_BAD_REQUEST),
-                statusDescription=INVALIDACCOUNT,
-            )
-    except Exception as ex:
-        logger.error(ex)
-        responses.status_code = status.HTTP_400_BAD_REQUEST
-        return BaseResponse(
-            statusCode=str(status.HTTP_400_BAD_REQUEST),
-            statusDescription=SYSTEMBUSY,
-        )
-
-@router.delete(
-    "/{msisdn}/delete",
-    response_model=CustomerResponse,
-    response_model_exclude_unset=True,
-    name="delete customer record"
-)
-async def delete_customer(
-    request: Request,
-    responses: Response,
-    
-    user: Annotated[Customer, Depends(authenticate_user)],
-    setting: Annotated[Setting, Depends(getSystemSetting)],
-    db: Annotated[Session, Depends(get_db)],
-    background_task: BackgroundTasks,
-):
-    try:
-        if user:
-            return customerservice.getCustomer(
-                request=request,
-                response=responses,
-                setting=setting,tenant=tenant,
                 db=db,
                 user=user,
                 background_task=background_task,

@@ -2,7 +2,7 @@ from typing import Optional, Union,List
 from datetime import datetime
 from sqlalchemy import func
 from pydantic import BaseModel
-from schemas.response import BaseResponse
+from schemas.base import BaseResponse
 
 
 class AccountBase(BaseModel):

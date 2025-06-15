@@ -45,7 +45,7 @@ def create_response(url,method=None,body=None,headers=None,status_code=500, mess
     method = method or "GET"
     request = requests.Request(method, url, headers=headers, data=body).prepare()
     response.status_code = status_code
-    response._content = message.encode()  # Encode message as bytes
+    response._content = json.dumps({"statusCode":str(status_code),"statusDescription":message,}).encode()  # Encode message as bytes
     response.headers = headers
     response.request = request
     return response
@@ -66,12 +66,12 @@ def http(url, params={}, headers={"content-type": "application/json"},contentTyp
                 resp = requests.get(url, headers=headers, timeout=timeout)
     except requests.Timeout:
         print("Request timed out.")
-        resp =  create_response(url=url,method=method,body=params,headers=headers,status_code=408,message="Request Timeout")
+        resp =  create_response(url=url,method=method,body=params,headers=headers,status_code=408,message="Request timed out.")
     except requests.ConnectionError:
         print("Connection error.")
-        resp =  create_response(url=url,method=method,body=params,headers=headers,status_code=503,message="Service Unavailable")
+        resp =  create_response(url=url,method=method,body=params,headers=headers,status_code=503,message="Connection error try again later")
     except requests.RequestException as e:
-        resp = create_response(url=url,method=method,body=params,headers=headers,status_code=500,message="Internal Server Error")
+        resp = create_response(url=url,method=method,body=params,headers=headers,status_code=500,message="System busy try again later")
     endTime = datetime.now()
     responseTime = (endTime - startTime).total_seconds()
     text = "_URL:: %s,_HEADER:: %s, _PARAM:: %s, _RESPONSE:: %s _STATUSCODE:: %s _TIME:: %s " % (
@@ -83,10 +83,9 @@ def http(url, params={}, headers={"content-type": "application/json"},contentTyp
         str(responseTime),
     )
     print(text)
-    return resp
-
+    return resp.json()
 def validateIP(request: Request, allowed: List[str]):
-    logger.info(f"this is a request coming from {request}")
+    logger.info(f"this is a request coming from {request.headers} allowed IPs are {str(allowed)} client host {request.client}")
     forwarded = request.headers.get("X-Forwarded-For")
     logger.info(f"this is a request coming from IP ............{forwarded}")
     #client_ip = forwarded.split(",")[0] if forwarded else request.client.host
@@ -94,6 +93,13 @@ def validateIP(request: Request, allowed: List[str]):
     if clientIp in allowed:
         return True
     return False
+
+def validateBVNDateOfBirth(bvnDob:str,inputDob:str)->bool:
+    try:
+        date_obj = datetime.strptime(bvnDob, "%d-%b-%Y")
+        return date_obj.strftime("%Y%m%d") == inputDob
+    except Exception as ex:
+        return False
 def checkPin(pin:str):
     if pin:
         decryptPin = decrypt(encrypted_message=pin)
@@ -102,7 +108,8 @@ def checkPin(pin:str):
             return True
         return False
     return False
-
+def amountToKobo(amount):
+    return str(int(float(amount) * 100))
 def mailer(body, setting: Setting, subject: str, toAddress: str, fileToSend=None):
     try:
         msg = MIMEMultipart()
@@ -174,7 +181,7 @@ def send_sms_message(setting: Setting, toPhoneNumber: str, message: str,transact
         logger.error(str(ex))
         pass
 
-def formatPhoneWithDialingCode(msisdn):
+def formatPhoneFull(msisdn):
     msisdn = msisdn.replace("+", "", 1)
     if msisdn.startswith("234") and len(msisdn) == 13:
         return msisdn
@@ -184,8 +191,6 @@ def formatPhoneWithDialingCode(msisdn):
         return f"234{msisdn}"
     else:
         return msisdn
-
-
 def formatPhone(msisdn:str)->str:
     msisdn = msisdn.replace("+", "", 1)
     if msisdn.startswith("234") and len(msisdn) == 13:
@@ -196,7 +201,6 @@ def formatPhone(msisdn:str)->str:
         return msisdn
     else:
         return msisdn
-
 def formatPhoneShort(msisdn:str)->str:
     msisdn = msisdn.replace("+", "", 1)
     if msisdn.startswith("234") and len(msisdn) == 13:
