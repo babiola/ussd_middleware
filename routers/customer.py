@@ -93,7 +93,7 @@ async def post_customer_bvn_verification(
     name="Open account"
 )
 async def create_customer(
-    payload:BvnRequest,
+    payload:OpenAccountRequest,
     request: Request,
     responses: Response,
     user: Annotated[Customer, Depends(authenticate_user)],

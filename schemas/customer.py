@@ -28,9 +28,12 @@ class BvnRequest(BaseModel):
     telco:str
     sessionId:str
 class OpenAccountRequest(BaseModel):
-    firstName: str
-    lastName: str
-    middleName: str
+    bvn: str
+    dob: str
+    msisdn: str
+    telco:str
+    sessionId:str
+    pin:str
 class CreatePINRequest(BaseModel):
     pin: str
     confirmPin: str

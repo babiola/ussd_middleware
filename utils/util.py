@@ -93,7 +93,25 @@ def validateIP(request: Request, allowed: List[str]):
     if clientIp in allowed:
         return True
     return False
+def has_consecutive_or_repeating_digits(pin: str, min_streak: int = 3) -> bool:
+    if not pin.isdigit() or len(pin) < min_streak:
+        return False
 
+    count = 1
+
+    for i in range(1, len(pin)):
+        prev = int(pin[i - 1])
+        curr = int(pin[i])
+
+        # Check ascending or descending
+        if curr == prev + 1 or curr == prev - 1 or curr == prev:
+            count += 1
+            if count >= min_streak:
+                return True
+        else:
+            count = 1
+
+    return False
 def validateBVNDateOfBirth(bvnDob:str,inputDob:str)->bool:
     try:
         date_obj = datetime.strptime(bvnDob, "%d-%b-%Y")

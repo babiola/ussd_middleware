@@ -70,109 +70,114 @@ async def getBvnDetails(payload:BvnRequest,response:Response,setting:Setting):
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
         return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)
-async def create_customer(db:Session,payload:BvnRequest,response:Response,setting:Setting,accountType:AccountLevelEnum):
+async def create_customer(db:Session,payload:OpenAccountRequest,response:Response,setting:Setting,accountType:AccountLevelEnum):
     try:
-        retrieveBvn = await redisUtil.get_cache(key=f"bvn:{payload.bvn}")
-        if retrieveBvn:
-            retrieveBvn = json.loads(retrieveBvn)
-            if util.formatPhoneFull(payload.msisdn) == util.formatPhoneFull(retrieveBvn['phoneNumber1']):
-                if util.validateBVNDateOfBirth(retrieveBvn['dateOfBirth'],payload.dob):
-                    params = {
-                        "TransactionTrackingRef":util.generateUniqueId(),
-                        "AccountOpeningTrackingRef": util.formatPhoneShort(retrieveBvn['phoneNumber1']),
-                        "CustomerId":"",
-                        "ProductCode": "101",
-                        "FirstName":retrieveBvn['firstName'],
-                        "LastName":retrieveBvn['lastName'],
-                        "OtherNames": f"{retrieveBvn['middleName']}",
-                        "BVN":retrieveBvn['bvn'],
-                        "PhoneNo":retrieveBvn['phoneNumber1'],
-                        "Gender": 1 if retrieveBvn['gender'].lower()=="male" else 0,
-                        "PlaceOfBirth":retrieveBvn['lgaOfOrigin'],
-                        "DateOfBirth":retrieveBvn['dateOfBirth'],
-                        "Address":retrieveBvn['residentialAddress'],
-                        "AccountOfficerCode": "002",
-                        "Email":'info@rayyan.com' if retrieveBvn.get('email','info@rayyan.com') == '' else retrieveBvn.get('email','info@rayyan.com'),
-                        "NotificationPreference": 0,
-                        "TransactionPermission": "0",
-                        "AccountTier": "3"} if accountType == AccountLevelEnum.TIER3 else {
-                        "TransactionTrackingRef":util.generateUniqueId(),
-                        "AccountOpeningTrackingRef": util.formatPhoneShort(retrieveBvn['phoneNumber1']),
-                        "ProductCode": "101",
-                        "FirstName":retrieveBvn['firstName'],
-                        "LastName":retrieveBvn['lastName'],
-                        "OtherNames": f"{retrieveBvn['middleName']}",
-                        "BVN":retrieveBvn['bvn'],
-                        "NationalIdentityNo":retrieveBvn['nin'],
-                        "PhoneNo": retrieveBvn['phoneNumber1'],
-                        "Gender":retrieveBvn['gender'],
-                        "PlaceOfBirth":retrieveBvn['lgaOfOrigin'],
-                        "DateOfBirth": retrieveBvn['dateOfBirth'],
-                        "Address":retrieveBvn['residentialAddress'],
-                        "AccountTier": "3",
-                        "CustomerImage":retrieveBvn['base64Image'],
-                        "AccountOfficerCode": "002",
-                        "HasSufficientInfoOnAccountInfo": True,
-                        "Email":'info@rayyan.com' if retrieveBvn.get('email','info@rayyan.com') == '' else retrieveBvn.get('email','info@rayyan.com'),
-                        "NotificationPreference":0,
-                        "TransactionPermission": "0",
-                        "AccountInformationSource": 0,
-                        "NextOfKinPhoneNo": "",
-                        "NextOfKinName": "",
-                        "ReferralPhoneNo": "",
-                        "ReferralName": "",
-                        "OtherAccountInformationSource": "",
-                        "CustomerSignature": "",
-                        "IdentificationImage": retrieveBvn['base64Image']
-                    }
-                    createAccount = externalService.openAccount(setting=setting,params=params)
-                    logger.info(createAccount)
-                    if createAccount['statuscode'] == str(status.HTTP_200_OK):
-                        customer = CustomerModel(
-                                firstname = retrieveBvn['firstName'],
-                                lastname = retrieveBvn['lastName'],
-                                middlename = retrieveBvn['middleName'],
-                                customerNumber = createAccount["details"]["CustomerID"],
-                                dob = retrieveBvn['lgaOfOrigin'],
-                                email = retrieveBvn['email'],
-                                phonenumber = util.formatPhoneFull(payload.msisdn),
-                                bvn = payload.bvn,
-                                nin = retrieveBvn['nin'],
-                                gender = True if retrieveBvn['gender'] =="Male" else False,
-                                active = True,
-                                isUssdEnrolled =False,
-                                blacklisted = False,
-                                indemnitySigned = False,
-                                accounts = [
-                                    AccountModel(
-                                            accountNumber = createAccount["details"]["AccountNumber"],
-                                            customerNumber = createAccount["details"]["CustomerID"],
-                                            active = True,
-                                            isDefaultPayment = True,
-                                            blacklisted = False,
-                                            balance = "0",
-                                            level = AccountLevelEnum.TIER3
-                                )],
-                                created_at = datetime.now(datetime.timezone.utc),
-                                updated_at = datetime.now(datetime.timezone.utc))
-                        savecustomer = customerQuery.create_account(db=db,user=customer)
-                        if savecustomer:
-                            return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=createAccount['message'],data=createAccount["details"]["AccountNumber"])
+        if payload.pin and payload.pin.isdigit() and len(payload.pin) == 4:
+            retrieveBvn = await redisUtil.get_cache(key=f"bvn:{payload.bvn}")
+            if retrieveBvn:
+                retrieveBvn = json.loads(retrieveBvn)
+                if util.formatPhoneFull(payload.msisdn) == util.formatPhoneFull(retrieveBvn['phoneNumber1']):
+                    if util.validateBVNDateOfBirth(retrieveBvn['dateOfBirth'],payload.dob):
+                        params = {
+                            "TransactionTrackingRef":util.generateUniqueId(),
+                            "AccountOpeningTrackingRef": util.formatPhoneShort(retrieveBvn['phoneNumber1']),
+                            "CustomerId":"",
+                            "ProductCode": "101",
+                            "FirstName":retrieveBvn['firstName'],
+                            "LastName":retrieveBvn['lastName'],
+                            "OtherNames": f"{retrieveBvn['middleName']}",
+                            "BVN":retrieveBvn['bvn'],
+                            "PhoneNo":retrieveBvn['phoneNumber1'],
+                            "Gender": 1 if retrieveBvn['gender'].lower()=="male" else 0,
+                            "PlaceOfBirth":retrieveBvn['lgaOfOrigin'],
+                            "DateOfBirth":retrieveBvn['dateOfBirth'],
+                            "Address":retrieveBvn['residentialAddress'],
+                            "AccountOfficerCode": "002",
+                            "Email":'info@rayyan.com' if retrieveBvn.get('email','info@rayyan.com') == '' else retrieveBvn.get('email','info@rayyan.com'),
+                            "NotificationPreference": 0,
+                            "TransactionPermission": "0",
+                            "AccountTier": "3"} if accountType == AccountLevelEnum.TIER3 else {
+                            "TransactionTrackingRef":util.generateUniqueId(),
+                            "AccountOpeningTrackingRef": util.formatPhoneShort(retrieveBvn['phoneNumber1']),
+                            "ProductCode": "101",
+                            "FirstName":retrieveBvn['firstName'],
+                            "LastName":retrieveBvn['lastName'],
+                            "OtherNames": f"{retrieveBvn['middleName']}",
+                            "BVN":retrieveBvn['bvn'],
+                            "NationalIdentityNo":retrieveBvn['nin'],
+                            "PhoneNo": retrieveBvn['phoneNumber1'],
+                            "Gender":retrieveBvn['gender'],
+                            "PlaceOfBirth":retrieveBvn['lgaOfOrigin'],
+                            "DateOfBirth": retrieveBvn['dateOfBirth'],
+                            "Address":retrieveBvn['residentialAddress'],
+                            "AccountTier": "3",
+                            "CustomerImage":retrieveBvn['base64Image'],
+                            "AccountOfficerCode": "002",
+                            "HasSufficientInfoOnAccountInfo": True,
+                            "Email":'info@rayyan.com' if retrieveBvn.get('email','info@rayyan.com') == '' else retrieveBvn.get('email','info@rayyan.com'),
+                            "NotificationPreference":0,
+                            "TransactionPermission": "0",
+                            "AccountInformationSource": 0,
+                            "NextOfKinPhoneNo": "",
+                            "NextOfKinName": "",
+                            "ReferralPhoneNo": "",
+                            "ReferralName": "",
+                            "OtherAccountInformationSource": "",
+                            "CustomerSignature": "",
+                            "IdentificationImage": retrieveBvn['base64Image']
+                        }
+                        createAccount = externalService.openAccount(setting=setting,params=params)
+                        logger.info(createAccount)
+                        if createAccount['statuscode'] == str(status.HTTP_200_OK):
+                            customer = CustomerModel(
+                                    firstname = retrieveBvn['firstName'],
+                                    lastname = retrieveBvn['lastName'],
+                                    middlename = retrieveBvn['middleName'],
+                                    customerNumber = createAccount["details"]["CustomerID"],
+                                    dob = retrieveBvn['lgaOfOrigin'],
+                                    email = retrieveBvn['email'],
+                                    phonenumber = util.formatPhoneFull(payload.msisdn),
+                                    bvn = payload.bvn,
+                                    nin = retrieveBvn['nin'],
+                                    pin=util.get_password_hash(payload.pin),
+                                    gender = True if retrieveBvn['gender'] =="Male" else False,
+                                    active = True,
+                                    isUssdEnrolled =True,
+                                    blacklisted = False,
+                                    indemnitySigned = False,
+                                    accounts = [
+                                        AccountModel(
+                                                accountNumber = createAccount["details"]["AccountNumber"],
+                                                customerNumber = createAccount["details"]["CustomerID"],
+                                                active = True,
+                                                isDefaultPayment = True,
+                                                blacklisted = False,
+                                                balance = "0",
+                                                level = AccountLevelEnum.TIER3
+                                    )],
+                                    created_at = datetime.now(datetime.timezone.utc),
+                                    updated_at = datetime.now(datetime.timezone.utc))
+                            savecustomer = customerQuery.create_account(db=db,user=customer)
+                            if savecustomer:
+                                return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=createAccount['message'],data=createAccount["details"]["AccountNumber"])
+                            else:
+                                response.status_code = status.HTTP_400_BAD_REQUEST
+                                return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=createAccount['message'])
                         else:
                             response.status_code = status.HTTP_400_BAD_REQUEST
                             return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=createAccount['message'])
                     else:
                         response.status_code = status.HTTP_400_BAD_REQUEST
-                        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=createAccount['message'])
+                        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription="Record Mismatched")
                 else:
-                    response.status_code = status.HTTP_400_BAD_REQUEST
-                    return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription="Record Mismatched")
+                    response.status_code = status.HTTP_400_BAD_REQUEST 
+                    return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription="Phone Number Mismatched")
             else:
-                response.status_code = status.HTTP_400_BAD_REQUEST 
-                return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription="Phone Number Mismatched")
+                response.status_code = status.HTTP_400_BAD_REQUEST
+                return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=FAILED)
         else:
             response.status_code = status.HTTP_400_BAD_REQUEST
-            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=FAILED)
+            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription="PIN must be 4 digits and numeric")
     except Exception as ex:
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
