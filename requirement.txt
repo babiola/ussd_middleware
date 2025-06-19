@@ -1,5 +1,4 @@
 aiosmtplib==2.0.2
-annotated-types==0.6.0
 anyio==4.2.0
 bcrypt==4.1.2
 blinker==1.7.0
