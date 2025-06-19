@@ -1,22 +1,101 @@
 from models.model import *
-from schemas.user import User
+import json
+from schemas.customer import Customer
 from sqlalchemy.orm import Session
-from schemas.wallet import Wallet
-from utils.cruds import paymentQuery
+from schemas.account import Account
+from models.queries import paymentQuery
 from schemas.setting import Setting
 from utils import util
+from utils import redisUtil
 from utils.constant import *
 from datetime import datetime
-import pytz
 import logging
 
 logger = logging.getLogger(__name__)
 
-
+async def checkBvn(setting: Setting,bvn:str,bvnType:str):
+    response = {}
+    try:
+        logger.info(f"started bank verification check for {bvn}")
+        retrieveBvn = await redisUtil.get_cache(key=f"bvn:{bvn}")
+        if retrieveBvn:
+            retrieveBvn = json.loads(retrieveBvn)
+            response["statuscode"] = "200"
+            response["message"] = SUCCESS
+            response["data"] = retrieveBvn
+        else:
+            params = {'basic_or_advance': bvnType, 'bvn': bvn}
+            res = util.http(url=f'{setting.bvn_base_url}identity/validate-bvn',params=params)
+            resp = res.json()
+            if res.status_code == 200:
+                if resp["status"] is True:
+                    response["statuscode"] = str(res.status_code)
+                    response["message"] = resp["detail"]
+                    response["data"] = resp["data"]
+                else:
+                    response["code"] = "400"
+                    response["message"] = resp["message"]
+            else:
+                response["statuscode"] = str(res.status_code)
+                response["message"] = resp["message"]
+    except Exception as ex:
+        logger.info(ex)
+        response["statuscode"] = "500"
+        response["message"] = SYSTEMBUSY
+    return response
+def openDetailedAccount(setting: Setting,params: dict = None):
+    response = {}
+    try:
+        logger.info(f"started get customer records for account Number {params} with BankOne")
+        res = util.http(url=f"{setting.bankone_url}BankOneWebAPI/api/Account/CreateCustomerAndAccount/2?authToken={setting.bankone_token}",params=params)
+        resp = res.json()
+        if res.status_code == 200:
+            if resp["status"] is True:
+                response["statuscode"] = str(res.status_code)
+                response["message"] = resp["detail"]
+                response["data"] = resp["Message"]
+            else:
+                response["statuscode"] = "400"
+                response["message"] = resp["detail"]
+        else:
+            response["statuscode"] = str(res.status_code)
+            response["message"] = resp["detail"]
+    except Exception as ex:
+        logger.info(ex)
+        response["statuscode"] = "500"
+        response["message"] = SYSTEMBUSY
+    return response
+def openAccount(setting: Setting, params: dict = None):
+    response = {}
+    try:
+        logger.info(
+            f"started get customer records for account Number {params} with BankOne"
+        )
+        
+        rawResponse = util.http(
+                        url=f"{setting.bankone_url}BankOneWebAPI/api/Account/CreateAccountQuick/2?authToken={setting.bankone_token}",
+                        params=params)
+        if rawResponse.status_code == 200:
+            res = rawResponse.json()
+            if res["IsSuccessful"] is True:
+                response["statuscode"] = str(rawResponse.status_code)
+                response["message"] = SUCCESS
+                response["details"] = res["Message"]
+            else:
+                response["statuscode"] = "400"
+                response["message"] = res["Message"]["CreationMessage"] if "CreationMessage" in res["Message"] else res["Message"]
+        else:
+            response["statuscode"] = str(rawResponse.status_code)
+            response["message"] = SYSTEMBUSY
+    except Exception as ex:
+        logger.info(ex)
+        response["statuscode"] = "500"
+        response["message"] = SYSTEMBUSY
+    return response
 def debitTransaction(
     db: Session,
-    user: User,
-    wallet: Wallet,
+    user: Customer,
+    wallet: Account,
     transaction: TransactionModel,
 ):
     if user.commission_enabled:
@@ -62,7 +141,7 @@ def debitTransaction(
         return debitAccount(db=db, wallet=wallet, amount=int(transaction.amount))
 def debitAccount(
     db: Session,
-    wallet: Wallet,
+    wallet: Account,
     amount: int,
 ):
     if int(wallet.balance) > amount:
@@ -76,7 +155,7 @@ def debitAccount(
     else:
         return util.DebitStatusEnum.INSUFICIENT
 def creditAccountByBankOne(
-        user:User,
+        user:Customer,
         accountToBeCredited:str,
         setting: Setting, 
         db: Session, 
@@ -129,7 +208,7 @@ def creditAccountByBankOne(
         response["message"] = SYSTEMBUSY
     return response
 def debitAccountByBankOne(
-        user:User,
+        user:Customer,
         accountToBeDebited:str,
         setting: Setting, 
         db: Session, 
@@ -540,104 +619,6 @@ def updateCustomerViaCustomerIdFromBankOne(setting: Setting,custId:str,firstName
             response["code"] = "00"
             response["message"] = SUCCESS
             response["details"] = resp
-        else:
-            response["code"] = "BT00F"
-            response["message"] = SYSTEMBUSY
-    except Exception as ex:
-        logger.info(ex)
-        response["code"] = "BT00"
-        response["message"] = SYSTEMBUSY
-    return response
-def openDetailedAccountByBankOne(setting: Setting,trackingRef:str,firstName:str,lastName:str,middleName:str,bvn:str,nin:str,phone:str,gender:str,placeOfBirth:str,dateOfBirth:str,address:str,photo:str,email:str):
-    response = {}
-    try:
-        logger.info(
-            f"started get customer records for account Number {firstName} with BankOne"
-        )
-        params = {
-    "TransactionTrackingRef":trackingRef,
-    "AccountOpeningTrackingRef":trackingRef,
-    "ProductCode": "100",
-    "FirstName":firstName,
-    "LastName":lastName,
-    "OtherNames":middleName,
-    "BVN":bvn,
-    "NationalIdentityNo":nin,
-    "PhoneNo": phone,
-    "Gender":gender,
-    "PlaceOfBirth":placeOfBirth,
-    "DateOfBirth": dateOfBirth,
-    "Address":address,
-    "AccountTier": "3",
-    "CustomerImage":photo,
-    "AccountOfficerCode": "284",
-    "HasSufficientInfoOnAccountInfo": True,
-    "Email": email,
-    "NotificationPreference":0,
-    "TransactionPermission": "0",
-    "AccountInformationSource": 0,
-    "NextOfKinPhoneNo": "",
-    "NextOfKinName": "",
-    "ReferralPhoneNo": "",
-    "ReferralName": "",
-    "OtherAccountInformationSource": "",
-    "CustomerSignature": "",
-    "IdentificationImage": ""
-}
-        
-        rawResponse = util.httpV2(
-                        url=f"{setting.bankone_url}BankOneWebAPI/api/Account/CreateCustomerAndAccount/2?authToken={setting.bankone_token}",
-                        params=params)
-        if rawResponse.status_code == 200:
-            resp = rawResponse.json()
-            response["code"] = "00"
-            response["message"] = SUCCESS
-            response["details"] = resp
-        else:
-            response["code"] = "BT00F"
-            response["message"] = SYSTEMBUSY
-    except Exception as ex:
-        logger.info(ex)
-        response["code"] = "BT00F"
-        response["message"] = SYSTEMBUSY
-    return response
-def openQuickAccountByBankOne(setting: Setting,trackingRef:str,firstName:str,lastName:str,middleName:str,bvn:str,nin:str,phone:str,gender:str,placeOfBirth:str,dateOfBirth:str,address:str,photo:str,email:str):
-    response = {}
-    try:
-        logger.info(
-            f"started get customer records for account Number {firstName} with BankOne"
-        )
-        params = {
-            "TransactionTrackingRef":trackingRef,
-            "AccountOpeningTrackingRef": util.formatPhoneShort(phone),
-            "CustomerId":"",
-            "ProductCode": "100",
-            "FirstName":firstName,
-            "LastName":lastName,
-            "OtherNames":f"{firstName} {middleName}",
-            "BVN":bvn,
-            "PhoneNo":phone,
-            "Gender": gender,
-            "PlaceOfBirth":placeOfBirth,
-            "DateOfBirth":dateOfBirth,
-            "Address":address,
-            "AccountOfficerCode": "284",
-            "Email":email,
-            "NotificationPreference": 0,
-            "TransactionPermission": "0",
-            "AccountTier": "3"}
-        rawResponse = util.httpV2(
-                        url=f"{setting.bankone_url}BankOneWebAPI/api/Account/CreateAccountQuick/2?authToken={setting.bankone_token}",
-                        params=params)
-        if rawResponse.status_code == 200:
-            resp = rawResponse.json()
-            if resp["IsSuccessful"] is True:
-                response["code"] = "00"
-                response["message"] = SUCCESS
-                response["details"] = resp["Message"]
-            else:
-                response["code"] = "BT00F"
-                response["message"] = resp["Message"]
         else:
             response["code"] = "BT00F"
             response["message"] = SYSTEMBUSY

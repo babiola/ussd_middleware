@@ -2,7 +2,7 @@
 from utils import util
 from typing import Union,List
 from schemas.account import Account
-from pydantic import BaseModel,validator
+from pydantic import BaseModel,field_validator
 from schemas.base import BaseResponse
 
 class CustomerBase(BaseModel):
@@ -12,9 +12,9 @@ class CustomerBase(BaseModel):
     blacklisted: bool
     customerNumber: str
     phonenumber: str
-    @validator("phonenumber")
+    @field_validator("phonenumber")
     def phoneNumber_validator(cls, phonenumber):
-        phone = util.formatPhoneWithDialingCode(msisdn=phonenumber)
+        phone = util.formatPhoneFull(msisdn=phonenumber)
         return phone
 class Customer(CustomerBase):
     accounts:Union[List[Account],None] = None
@@ -31,7 +31,6 @@ class OpenAccountRequest(BaseModel):
     firstName: str
     lastName: str
     middleName: str
-
 class CreatePINRequest(BaseModel):
     pin: str
     confirmPin: str
@@ -39,7 +38,6 @@ class ChangePINRequest(BaseModel):
     oldPin: str
     pin: str
     confirmPin: str
-
 class CustomersResponse(BaseResponse):
     data: Union[List[Customer],None] = None
 class CustomerResponse(BaseResponse):

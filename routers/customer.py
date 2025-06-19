@@ -9,6 +9,7 @@ from fastapi import (
 from schemas.customer import *
 from schemas.admin import Admin
 from schemas.setting import Setting
+from models.model import AccountLevelEnum
 from sqlalchemy.orm import Session
 from utils.constant import *
 from typing import Annotated
@@ -36,20 +37,13 @@ async def get_customer(
     background_task: BackgroundTasks,
 ):
     try:
-        if user:
-            return customerservice.profile(
+        return customerservice.profile(
                 request=request,
                 response=response,
                 setting=setting,
                 db=db,
                 msisdn=msisdn,
                 background_task=background_task,
-            )
-        else:
-            response.status_code = status.HTTP_400_BAD_REQUEST
-            return CustomerResponse(
-                statusCode=str(status.HTTP_400_BAD_REQUEST),
-                statusDescription=INVALIDACCOUNT,
             )
     except Exception as ex:
         logger.error(ex)
@@ -74,7 +68,7 @@ async def post_customer_bvn_verification(
     try:
         if user:
             if util.validateIP(request=request, allowed=user.ips):
-                return customerservice.getBvnDetails(
+                return await customerservice.getBvnDetails(
                 payload=payload,
                 response=responses,
                 setting=setting,
@@ -94,7 +88,7 @@ async def post_customer_bvn_verification(
         )
 @router.post(
     "/create-customer",
-    response_model=CustomerResponse,
+    response_model=BaseResponse,
     response_model_exclude_unset=True,
     name="Open account"
 )
@@ -108,11 +102,11 @@ async def create_customer(
 ):
     try:
         if user:
-            return customerservice.create_customer(
+            return await customerservice.create_customer(
                 db=db,
                 payload=payload,
                 response=responses,
-                setting=setting,
+                setting=setting,accountType=AccountLevelEnum.TIER3
             )
         else:
             responses.status_code = status.HTTP_400_BAD_REQUEST

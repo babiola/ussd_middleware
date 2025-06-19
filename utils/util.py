@@ -83,7 +83,7 @@ def http(url, params={}, headers={"content-type": "application/json"},contentTyp
         str(responseTime),
     )
     print(text)
-    return resp.json()
+    return resp
 def validateIP(request: Request, allowed: List[str]):
     logger.info(f"this is a request coming from {request.headers} allowed IPs are {str(allowed)} client host {request.client}")
     forwarded = request.headers.get("X-Forwarded-For")
