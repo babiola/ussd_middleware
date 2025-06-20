@@ -20,10 +20,10 @@ from schemas.admin import Admin
 from utils import util
 
 logger = logging.getLogger(__name__)
-router = APIRouter(
+router = APIRouter(prefix="/product"
 )
 @router.post(
-    "/product/buy-airtime",
+    "/buy-airtime",
     response_model=BaseResponse,
     response_model_exclude_unset=True
 )
@@ -60,7 +60,7 @@ async def buy_airtime(
             statusDescription=SYSTEMBUSY,
         )
 @router.post(
-    "/product/buy-data",
+    "/buy-data",
     response_model=BaseResponse,
     response_model_exclude_unset=True
 )
@@ -97,7 +97,7 @@ async def buy_data_plan(
             statusDescription=SYSTEMBUSY,
         )
 # bill payment
-@router.get("/products",
+@router.get("/all",
     response_model=ProductsResponse,
     response_model_exclude_unset=True,)
 async def get_products(
@@ -133,7 +133,7 @@ async def get_products(
             statusCode=str(status.HTTP_500_INTERNAL_SERVER_ERROR),
             statusDescription=str(ex),
         )
-@router.get("/product/billers",
+@router.get("/billers",
     response_model=ProductsResponse,
     response_model_exclude_unset=True,)
 async def get_product_billers(
@@ -206,7 +206,7 @@ async def get_biller_packages(
             statusDescription=str(ex),
         )
 
-@router.post("/biller/name-enquiry",
+@router.post("/name-enquiry",
     response_model=BaseResponse,
     response_model_exclude_unset=True)
 async def biller_name_enquiry(
@@ -232,7 +232,7 @@ async def biller_name_enquiry(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
             statusDescription=str(ex),
         )
-@router.post("/biller/payment",
+@router.post("/payment",
     response_model=BaseResponse,
     response_model_exclude_unset=True)
 async def biller_payment(
