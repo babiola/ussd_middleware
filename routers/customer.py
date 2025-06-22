@@ -6,22 +6,23 @@ from fastapi import (
     Request,
     BackgroundTasks,
 )
-from schemas.customer import *
+from models.model import AccountModel
+from schemas.customer import CustomerResponse, Customer
+from schemas.base import BaseResponse, BvnRequest, OpenAccountRequest,EnrolAccountRequest
 from schemas.admin import Admin
 from schemas.setting import Setting
 from models.model import AccountLevelEnum
 from sqlalchemy.orm import Session
 from utils.constant import *
 from typing import Annotated
-from utils.dependencies import getSystemSetting, authenticate_user
+from utils.dependencies import getSystemSetting, authenticate_user,validateTransactionPIN
 from utils.database import get_db
 from services import customerservice
 from utils import util
 import logging
 
 logger = logging.getLogger(__name__)
-router = APIRouter(
-)
+router = APIRouter()
 @router.get(
     "/{msisdn}",
     response_model=CustomerResponse,
@@ -93,30 +94,33 @@ async def post_customer_bvn_verification(
     name="Open account"
 )
 async def create_customer(
-    payload:OpenAccountRequest,
+    payload:EnrolAccountRequest,
     request: Request,
-    responses: Response,
+    response: Response,
     user: Annotated[Customer, Depends(authenticate_user)],
     setting: Annotated[Setting, Depends(getSystemSetting)],
     db: Annotated[Session, Depends(get_db)],
+    background_task: BackgroundTasks,
 ):
     try:
         if user:
             return await customerservice.create_customer(
                 db=db,
+                request=request,
                 payload=payload,
-                response=responses,
-                setting=setting,accountType=AccountLevelEnum.TIER3
+                response=response,
+                setting=setting,
+                background_task=background_task,
             )
         else:
-            responses.status_code = status.HTTP_400_BAD_REQUEST
+            response.status_code = status.HTTP_400_BAD_REQUEST
             return BaseResponse(
                 statusCode=str(status.HTTP_400_BAD_REQUEST),
                 statusDescription=INVALIDACCOUNT,
             )
     except Exception as ex:
         logger.error(ex)
-        responses.status_code = status.HTTP_400_BAD_REQUEST
+        response.status_code = status.HTTP_400_BAD_REQUEST
         return BaseResponse(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
             statusDescription=SYSTEMBUSY,
@@ -138,13 +142,11 @@ async def post_customer_open_new_account(
 ):
     try:
         if user:
-            return customerservice.open_account(
+            return await customerservice.open_account(
                 db=db,
-                request=request,
                 payload=payload,
                 response=response,
-                setting=setting,
-                background_task=background_task,
+                setting=setting,accountType=AccountLevelEnum.TIER3 
             )
         else:
             response.status_code = status.HTTP_400_BAD_REQUEST
@@ -159,40 +161,33 @@ async def post_customer_open_new_account(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
             statusDescription=SYSTEMBUSY,
         )
-@router.get(
-    "/balance/{accountNumber}",
-    response_model=CustomerResponse,
+@router.post(
+    "/check-balance",
+    response_model=BaseResponse,
     response_model_exclude_unset=True,
 )
 async def get_customer_balance(
-    msisdn:str,
     request: Request,
     response: Response,
     user: Annotated[Admin, Depends(authenticate_user)],
     setting: Annotated[Setting, Depends(getSystemSetting)],
     db: Annotated[Session, Depends(get_db)],
+    account:Annotated[AccountModel, Depends(validateTransactionPIN)],
     background_task: BackgroundTasks,
 ):
     try:
-        if user:
-            return customerservice.profile(
+        return customerservice.balance(
+                account=account,
                 request=request,
                 response=response,
                 setting=setting,
                 db=db,
-                msisdn=msisdn,
                 background_task=background_task,
-            )
-        else:
-            response.status_code = status.HTTP_400_BAD_REQUEST
-            return CustomerResponse(
-                statusCode=str(status.HTTP_400_BAD_REQUEST),
-                statusDescription=INVALIDACCOUNT,
             )
     except Exception as ex:
         logger.error(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
-        return CustomerResponse(
+        return BaseResponse(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
             statusDescription=SYSTEMBUSY,
         )
@@ -201,7 +196,7 @@ async def get_customer_balance(
     response_model=CustomerResponse,
     response_model_exclude_unset=True,
 )
-async def post_customer_enable_ussd_profile(
+async def post_customer_enrolment_ussd_profile(
     request: Request,
     responses: Response,
     user: Annotated[Customer, Depends(authenticate_user)],

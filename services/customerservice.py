@@ -9,7 +9,7 @@ from utils import util
 from schemas.setting import Setting
 from utils.constant import *
 from schemas.customer import *
-from schemas.admin import Admin
+from schemas.base import BaseResponse, BvnRequest, OpenAccountRequest,EnrolAccountRequest
 from services import externalService
 from utils import redisUtil
 from fastapi import (
@@ -18,9 +18,7 @@ from fastapi import (
     Request,
     BackgroundTasks,
 )
-
 logger = logging.getLogger(__name__)
-
 def profile(
         request: Request,
         response: Response,
@@ -34,14 +32,14 @@ def profile(
             if customer.active and customer.isUssdEnrolled and customer.blacklisted is False:
                 return CustomerResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data=Customer.model_validate(customer))
             elif customer.blacklisted:
-                response.status_code = status.HTTP_403_FORBIDDEN
-                return CustomerResponse(statusCode=str(status.HTTP_403_FORBIDDEN),statusDescription=BLACKLISTED)
+                #response.status_code = status.HTTP_401_UNAUTHORIZED
+                return CustomerResponse(statusCode=str(status.HTTP_200_OK),statusDescription=BLACKLISTED,data=Customer.model_validate(customer))
             elif not customer.isUssdEnrolled:
-                response.status_code = status.HTTP_403_FORBIDDEN
-                return CustomerResponse(statusCode=str(status.HTTP_403_FORBIDDEN),statusDescription=NOTENROLLED)
+                #response.status_code = status.HTTP_401_UNAUTHORIZED
+                return CustomerResponse(statusCode=str(status.HTTP_200_OK),statusDescription=NOTENROLLED,data=Customer.model_validate(customer))
             else:
-                response.status_code = status.HTTP_403_FORBIDDEN
-                return CustomerResponse(statusCode=str(status.HTTP_403_FORBIDDEN),statusDescription=INACTIVE)
+                #response.status_code = status.HTTP_401_UNAUTHORIZED
+                return CustomerResponse(statusCode=str(status.HTTP_200_OK),statusDescription=INACTIVE,data=Customer.model_validate(customer))
         response.status_code = status.HTTP_404_NOT_FOUND
         return CustomerResponse(statusCode=str(status.HTTP_404_NOT_FOUND),statusDescription=NOTFOUND) 
     except Exception as ex:
@@ -70,7 +68,7 @@ async def getBvnDetails(payload:BvnRequest,response:Response,setting:Setting):
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
         return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)
-async def create_customer(db:Session,payload:OpenAccountRequest,response:Response,setting:Setting,accountType:AccountLevelEnum):
+async def open_account(db:Session,payload:OpenAccountRequest,response:Response,setting:Setting,accountType:AccountLevelEnum):
     try:
         if payload.pin and payload.pin.isdigit() and len(payload.pin) == 4:
             retrieveBvn = await redisUtil.get_cache(key=f"bvn:{payload.bvn}")
@@ -155,8 +153,8 @@ async def create_customer(db:Session,payload:OpenAccountRequest,response:Respons
                                                 balance = "0",
                                                 level = AccountLevelEnum.TIER3
                                     )],
-                                    created_at = datetime.now(datetime.timezone.utc),
-                                    updated_at = datetime.now(datetime.timezone.utc))
+                                    created_at = datetime.now(),
+                                    updated_at = datetime.now())
                             savecustomer = customerQuery.create_account(db=db,user=customer)
                             if savecustomer:
                                 return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=createAccount['message'],data=createAccount["details"]["AccountNumber"])
@@ -182,38 +180,97 @@ async def create_customer(db:Session,payload:OpenAccountRequest,response:Respons
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
         return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)
-def open_account(db:Session,request:Request,payload:OpenAccountRequest,response:Response,setting:Setting,background_task: BackgroundTasks):
+async def create_customer(db:Session,request:Request,payload:EnrolAccountRequest,response:Response,setting:Setting,background_task: BackgroundTasks):
     try:
-        params = {'basic_or_advance': 'basic','bvn': payload.bvn}
-        res = util.http(url=f'{setting.bvn_base_url}identity/validate-bvn',params=params)
-        if res['status']:
-            if util.formatPhoneFull(payload.msisdn) == util.formatPhoneFull(res['data']['phoneNumber']):
-                if util.validateBVNDateOfBirth(res['data']['dateOfBirth'],payload.dob):
-                    return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=res['detail'],data=res['data'])
+        customer = await externalService.getCustomerViaAccount(setting=setting,account=payload.accountNumber)
+        logger.info(customer)
+        if customer['statuscode'] == str(status.HTTP_200_OK):
+            if util.formatPhoneFull(payload.msisdn) == util.formatPhoneFull(customer['data']['phoneNumber']):
+                if customer['data']['BVN'] == payload.bvn:
+                    await redisUtil.set_cache(key=f"enrollment:{payload.accountNumber}", value=json.dumps(customer['data']), ttl=timedelta(days=1))
+                    checkCustomer = customerQuery.getCustomerByMsisdn(db=db,msisdn=util.formatPhoneFull(payload.msisdn))
+                    if checkCustomer and checkCustomer.active and checkCustomer.isUssdEnrolled and checkCustomer.blacklisted is False:
+                        response.status_code = status.HTTP_400_BAD_REQUEST
+                        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription="Customer already enrolled and active")
+                    elif checkCustomer and checkCustomer.isUssdEnrolled is False:
+                        logger.info(f"Customer {checkCustomer.customerNumber} is blacklisted")
+                        checkCustomer.active = True
+                        checkCustomer.isUssdEnrolled = True
+                        checkCustomer.blacklisted = False
+                        checkCustomer.updated_at = datetime.now()
+                        checkCustomer.hasPin = True
+                        checkCustomer.pin = util.get_password_hash(payload.pin)
+                        saved = customerQuery.create(db=db,model=checkCustomer)
+                        if saved:
+                            return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
+                        else:
+                            response.status_code = status.HTTP_400_BAD_REQUEST
+                            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=FAILED)
+                    else:
+                        logger.info(f"Creating new customer with account {payload.accountNumber}")
+                        account = next((account for account in customer['data']['Accounts'] if account['NUBAN'] == payload.accountNumber), None)
+                        newcustomer = CustomerModel(
+                                    firstname = customer['data']['name'].split(' ')[1] if len(customer['data']['name'].split(' ')) > 1 else customer['data']['name'].split(' ')[0],
+                                    lastname = customer['data']['name'].split(' ')[0] if len(customer['data']['name'].split(' ')) > 1 else "",
+                                    customerNumber = customer['data']["customerID"],
+                                    dob = customer['data']['dateOfBirth'],
+                                    email = customer['data']['email'],
+                                    phonenumber = util.formatPhoneFull(payload.msisdn),
+                                    bvn = payload.bvn,
+                                    hasPin = True,
+                                    pin=util.get_password_hash(payload.pin),
+                                    gender = True if customer['data']['gender'].lower() =="male" else False,
+                                    active = True,
+                                    isUssdEnrolled =True,
+                                    blacklisted = False,
+                                    indemnitySigned = False,
+                                    accounts = [
+                                        AccountModel(
+                                                accountNumber = account['NUBAN'] if account else payload.accountNumber,
+                                                customerNumber = account['customerID'] if account else customer['data']["customerID"],
+                                                active = True,
+                                                isDefaultPayment = True,
+                                                blacklisted = False,
+                                                balance = account['withdrawableAmount'] if account else "0",
+                                                level = AccountLevelEnum.TIER3
+                                    )],
+                                    created_at = datetime.now(),
+                                    updated_at = datetime.now())
+                        saved = customerQuery.create(db=db,model=newcustomer)
+                        if saved:
+                            return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
+                        else:
+                            response.status_code = status.HTTP_400_BAD_REQUEST
+                            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=FAILED)
                 else:
-                    response.status_code = status.HTTP_400_BAD_REQUEST
-                    BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription="Record Mismatched")
+                    response.status_code = status.HTTP_400_BAD_REQUEST 
+                    return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=BVNMISMATCH)
             else:
                 response.status_code = status.HTTP_400_BAD_REQUEST 
-                return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription="Phone Number Mismatched")
+                return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=PHONENUMBERMISMATCH)
         else:
             response.status_code = status.HTTP_400_BAD_REQUEST
-            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=res['message'])
+            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=customer['message'])
     except Exception as ex:
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
-        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)
-
-def balance(
-        wallet:str,
-        request: Request,
-        response: Response,
-        setting: Setting,
-        db: Session,
-        user: Customer,
-        background_task: BackgroundTasks,):
+        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)   
+async def balance(account:AccountModel,request: Request,response: Response,setting: Setting,db: Session,background_task: BackgroundTasks):
     try:
-        return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data=user.wallet.availableBalance)
+        account =await externalService.accountBalance(setting=setting,account=account.accountNumber)
+        if account:
+            account.balance = account['data']['WithdrawableBalance'] if 'WithdrawableBalance' in account['data'] else "0"
+            account.updated_at = datetime.now()
+            background_task.add_task(customerQuery.create, db=db, model=account)
+            logger.info(f"Account Balance for {account.accountNumber} is {account.balance}")
+            if account['statuscode'] == str(status.HTTP_200_OK):
+                return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data=account['data']['WithdrawableBalance'])
+            else:
+                response.status_code = status.HTTP_400_BAD_REQUEST
+                return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=account['message'])
+        else:
+            response.status_code = status.HTTP_400_BAD_REQUEST
+            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=BALANCEERROR)
     except Exception as ex:
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST

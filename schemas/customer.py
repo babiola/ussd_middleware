@@ -12,6 +12,7 @@ class CustomerBase(BaseModel):
     blacklisted: bool
     customerNumber: str
     phonenumber: str
+    hasPin: bool
     @field_validator("phonenumber")
     def phoneNumber_validator(cls, phonenumber):
         phone = util.formatPhoneFull(msisdn=phonenumber)
@@ -21,26 +22,6 @@ class Customer(CustomerBase):
     class Config:
         from_attributes = True
         populate_by_name = True
-class BvnRequest(BaseModel):
-    bvn: str
-    dob: str
-    msisdn: str
-    telco:str
-    sessionId:str
-class OpenAccountRequest(BaseModel):
-    bvn: str
-    dob: str
-    msisdn: str
-    telco:str
-    sessionId:str
-    pin:str
-class CreatePINRequest(BaseModel):
-    pin: str
-    confirmPin: str
-class ChangePINRequest(BaseModel):
-    oldPin: str
-    pin: str
-    confirmPin: str
 class CustomersResponse(BaseResponse):
     data: Union[List[Customer],None] = None
 class CustomerResponse(BaseResponse):

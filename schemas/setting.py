@@ -15,6 +15,7 @@ class SettingBase(BaseModel):
     mail_port: Union[str, None] = None
     mail_server:  Union[str, None] = None
     mail_from_name:  Union[str, None] = None
+    max_pin_tries:  Union[int, None] = 3
     bvn_base_url:  Union[str, None] = None
     bank_bank_url:  Union[str, None] = None
     paystack_url:  Union[str, None] = None
@@ -24,6 +25,7 @@ class SettingBase(BaseModel):
     bankone_inst_code: Union[str, None] = None
     bankone_cust_gl: Union[str, None] = None
     bankone_gl_cust: Union[str, None] = None
+
 
 
 class SettingRequest(SettingBase):

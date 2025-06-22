@@ -57,6 +57,7 @@ class CustomerModel(Base):
     gender = Column(Boolean, default=False)
     country = Column(String(25),nullable=True)
     pin = Column(String(255), nullable=True)
+    hasPin = Column(Boolean, default=False)
     active = Column(Boolean, default=False)
     isUssdEnrolled = Column(Boolean, default=False)
     blacklisted = Column(Boolean, default=False)

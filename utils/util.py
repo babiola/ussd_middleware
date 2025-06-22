@@ -33,6 +33,8 @@ from email.mime.image import MIMEImage
 from email.mime.text import MIMEText
 import os
 import base64
+from schemas.bank import Bank
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 logger = logging.getLogger(__name__)
 templates = Jinja2Templates(directory="templates/email")
@@ -84,13 +86,24 @@ def http(url, params={}, headers={"content-type": "application/json"},contentTyp
     )
     print(text)
     return resp
-def validateIP(request: Request, allowed: List[str]):
+def validateIPs(request: Request, allowed: List[str]):
     logger.info(f"this is a request coming from {request.headers} allowed IPs are {str(allowed)} client host {request.client}")
     forwarded = request.headers.get("X-Forwarded-For")
     logger.info(f"this is a request coming from IP ............{forwarded}")
     #client_ip = forwarded.split(",")[0] if forwarded else request.client.host
     clientIp = forwarded if forwarded else request.client.host
     if clientIp in allowed:
+        return True
+    return False
+def validateIP(request: Request, allowed: List[str]):
+    logger.info(f"this is a request coming from {request}")
+    forwarded = request.headers.get("X-Forwarded-For")
+    logger.info(f"this is a request coming from IP ............{forwarded}")
+    x_forwarded_for = request.headers.get("x-forwarded-for")
+    if x_forwarded_for:
+        ip_list = [ip.strip() for ip in x_forwarded_for.split(",")]
+        return any(ip in allowed for ip in ip_list)
+    elif request.client.host in allowed:
         return True
     return False
 def has_consecutive_or_repeating_digits(pin: str, min_streak: int = 3) -> bool:
@@ -118,15 +131,30 @@ def validateBVNDateOfBirth(bvnDob:str,inputDob:str)->bool:
         return date_obj.strftime("%Y%m%d") == inputDob
     except Exception as ex:
         return False
-def checkPin(pin:str):
+def checkPin(key:str,pin:str):
     if pin:
-        decryptPin = decrypt(encrypted_message=pin)
+        decryptPin = decrypt_pin(encryptedPin=pin,key=key)
+        logger.info(f"this is the decrptyed PIN .........{decryptPin}")
         if decryptPin and decryptPin.isdigit() and len(decryptPin) == 4:
             logger.info(f"this is the decrptyed PIN .........{decryptPin}")
-            return True
-        return False
-    return False
-def amountToKobo(amount):
+            return decryptPin
+        return None
+    return None
+def encrypt_pin(plaintextPin: str,key:str) -> str:
+    key = bytes.fromhex(key)
+    aesgcm = AESGCM(key)
+    nonce = os.urandom(12)  # 96-bit nonce for AESGCM
+    encrypted = aesgcm.encrypt(nonce, plaintextPin.encode(), None)
+    return base64.b64encode(nonce + encrypted).decode()
+def decrypt_pin(encryptedPin: str,key:str) -> str:
+    key = bytes.fromhex(key)
+    aesgcm = AESGCM(key)
+    decoded = base64.b64decode(encryptedPin)
+    nonce = decoded[:12]
+    ciphertext = decoded[12:]
+    decrypted = aesgcm.decrypt(nonce, ciphertext, None)
+    return decrypted.decode()
+def amountToKobo(amount:str)->str:
     return str(int(float(amount) * 100))
 def mailer(body, setting: Setting, subject: str, toAddress: str, fileToSend=None):
     try:
@@ -174,7 +202,6 @@ def mailer(body, setting: Setting, subject: str, toAddress: str, fileToSend=None
     except Exception as e:
         logger.error(f"Error sending email at {datetime.now()} {str(e)}")
         pass
-
 def send_sms_message(setting: Setting, toPhoneNumber: str, message: str,transactionId:str):
     try:
         logger.info(f"started sending SMS to {toPhoneNumber} with text {message} with transactionId {transactionId}")
@@ -198,7 +225,6 @@ def send_sms_message(setting: Setting, toPhoneNumber: str, message: str,transact
     except Exception as ex:
         logger.error(str(ex))
         pass
-
 def formatPhoneFull(msisdn):
     msisdn = msisdn.replace("+", "", 1)
     if msisdn.startswith("234") and len(msisdn) == 13:
@@ -227,7 +253,8 @@ def formatPhoneShort(msisdn:str)->str:
         return msisdn.replace("0", "", 1)
     else:
         return msisdn
-
+def get_bank_by_code(bankcode: str, banks: List[Bank]) -> Union[Bank, None]:
+    return next((bank for bank in banks if bank.Code == bankcode), None)
 def mask_email(email):
     return re.sub(r'^[^@]+', '*' * len(re.search(r'^[^@]+', email).group()), email)
 
@@ -262,22 +289,32 @@ def parseVerifymeDateOfBirth(dob:str)->Union[str,None]:
         return input_date.strftime("%Y%m%d")
     except Exception as ex:
         return None
-def generateCheckDigit(serialNumber:str, bankCode:str):
+def generateCheckDigit(serialNumber: str, bankCode: str) -> int:
     seed = "373373373373"
     serialNumLength = 9
-    #return len(serialNumber) > serialNumLength
-    serialNumber = f"{serialNumber:0{serialNumLength}}"
-    cipher = bankCode + serialNumber
-    sum = 0
-    #Step 1. Calculate A*3+B*7+C*3+D*3+E*7+F*3+G*3+H*7+I*3+J*3+K*7+L*3
+
+    # Validate lengths
+    if len(bankCode) != 3:
+        raise ValueError("Bank code must be 3 digits")
+    if len(serialNumber) > serialNumLength:
+        raise ValueError("Serial number must be at most 9 digits")
+
+    # Zero pad serial number to 9 digits
+    padded_serial = serialNumber.zfill(serialNumLength)
+
+    # Concatenate bank code and padded serial number
+    cipher = bankCode + padded_serial
+
+    if len(cipher) != len(seed):
+        raise ValueError("Combined length of bankCode and serialNumber must be 12 digits")
+
+    total = 0
     for idx, x in enumerate(cipher):
-        logger.info(f"{seed[idx]} and {x}")
-        sum += int(x) * int(seed[idx])
-    #Step 2: Calculate Modulo 10 of your result i.e. the remainder after dividing by 10
-    sum %= 10
-    #Step 3. Subtract your result from 10 to get the Check Digit
-    checkDigit = 10 - sum
-    #Step 4. If your result is 10, then use 0 as your check digit
+        logger.info(f"Digit: {x}, Seed: {seed[idx]}")
+        total += int(x) * int(seed[idx])
+
+    remainder = total % 10
+    checkDigit = 10 - remainder
     return 0 if checkDigit == 10 else checkDigit
 
 def formXml(setting: Setting, phone: str, content: str):
