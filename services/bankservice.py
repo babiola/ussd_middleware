@@ -20,18 +20,21 @@ from models.bank import ALLBANK
 
 logger = logging.getLogger(__name__)
 
-def banks(
+async def banks(
         request: Request,
         response: Response,
-        setting: Setting):
+        setting: Setting,search:str=None):
     try:
-        banks = filter(lambda bank:len(bank.Code) > 3,ALLBANK.banks)
+        if search:
+            banks = filter(lambda bank:len(bank.Code) > 3 and bank.Name.lower().startswith(search.lower()),ALLBANK.banks)
+        else:
+            banks = filter(lambda bank:len(bank.Code) > 3,ALLBANK.banks)
         return BanksResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data=banks)
     except Exception as ex:
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
         return BanksResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=SYSTEMBUSY,)
-def possibleBank(request:Request,response:Response,setting:Setting,payload:TransferPossibleRequest):
+async def possibleBank(request:Request,response:Response,setting:Setting,payload:TransferPossibleRequest):
     try:
         if ALLBANK:
             likelyBanks = filter(lambda bank:len(bank.Code) == 3 and isPossibleBank(bank=bank,account=payload.receipient),ALLBANK.banks)
@@ -47,9 +50,6 @@ def possibleBank(request:Request,response:Response,setting:Setting,payload:Trans
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
         return BanksResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=SYSTEMBUSY,)
-def isPossibleBank(account:str,bank:Bank):
-    logger.info(f"{account} bank {bank.Code} with code {bank.Name}")
-    return str(util.generateCheckDigit(account[:9], bank.Code)) == account[9]
 async def bankNameEnquiry(request:Request,response: Response, setting: Setting, db: Session, payload: TransferNameEnquiryRequest):
     try:
         logger.info(f"started name enquiry for bank {payload.receipient} with account {payload.receipient}")
@@ -88,163 +88,56 @@ async def bankNameEnquiry(request:Request,response: Response, setting: Setting, 
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
         return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=SYSTEMBUSY,)
-def accountTransferPayment(request:Request,user:CustomerModel,response: Response, setting: Setting, db: Session, payload: TransferRequest):
+async def bankTransferIntra(request:Request,account:AccountModel,response: Response, setting: Setting, db: Session, payload: TransferRequest,background_task: BackgroundTasks):
     try:
-        logger.info(
-            f"started payment transfer for bank {payload.destinationBankCode} with account {payload.destinationAccountNumber}"
-        )
-        bank = transferQuery.getBankByCBNCode(db=db,code=payload.destinationBankCode)
-        if bank:
-            walletAccount = transferQuery.getWalletAccountByAccountNumber(db=db,wallet=payload.senderAccountNumber)
-            if walletAccount:
-            #if int(walletAccount.balance) < int(payload.amount):
-                #walletAccount.balance_before = walletAccount.balance
-                #walletAccount.balance = str(int(walletAccount.balance) - int(payload.amount))
-                # create transaction 
-                transactionId = f"TF{util.generateId()}"
-                transaction = TransactionModel(
-                    user_id=user.id,
-                    transactionId=transactionId,
-                    amount=payload.amount,
-                    product="TRANSFER",
-                    isDebit=True,
-                    customerBillerId=payload.destinationBankCode,
-                    recipientAccountNumber=payload.destinationAccountNumber,
-                    recipientBank=bank.shortname,
-                    recipientName=payload.destinationAccountNumber,
-                    senderName=f"{user.lastname} {user.firstname}",
-                    recipientId=payload.destinationAccountNumber,
-                    remarks=f"TRF/{payload.remark if payload.remark else  payload.destinationAccountNumber } {payload.amount}",# f"commission on {transaction.transactionType}",
-                    reference=transactionId,
-                    transactionType="TRANSFER",
-                    transactionStatus=PENDING,
-                    owner_id=user.id,
-                    updated_at=datetime.now(),
-                    created_at=datetime.now(),
-                )
-                createdTransaction = paymentQuery.create_transaction(
-                    db=db, transaction=transaction
-                )
-                if createdTransaction:
-                    resp ={}
-                    if payload.destinationBankCode == setting.focus_code:
-                        resp = externalService.accountTransferIntraPaymentByBankOne(
-                            amount=payload.amount,senderName=f"{user.lastname} {user.firstname}",
-                            senderAccount=payload.senderAccountNumber,destinationAccountNumber=payload.destinationAccountNumber,
-                            destinationAccountName=payload.destinationAccountName,destinationBankCode=payload.destinationBankCode,
-                            setting=setting,
-                            transactionId=transactionId,
-                            transType="LOCALFUNDTRANSFER",
-                            remark=f"Trf/{payload.remark if payload.remark else  payload.destinationAccountNumber }/{payload.amount}")
-                    else:
-                        if setting.trf_lookup_provider.upper() == "ISW":
-                            resp = externalService.accountTransferInterPaymentByInterSwitch(
-                            amount=payload.amount,senderName=f"{user.lastname} {user.firstname}",
-                            senderAccount=payload.senderAccountNumber,destinationAccountNumber=payload.destinationAccountNumber,
-                            destinationAccountName=payload.destinationAccountName,destinationBankCode=payload.destinationBankCode,
-                            setting=setting,
-                            transactionId=transactionId,
-                            transType="INTERBANKTRANSFER",
-                            remark=f"Trf/{payload.remark if payload.remark else  payload.destinationAccountNumber }/{payload.amount}")
-                        elif setting.trf_lookup_provider.upper() == "BKONE":
-                            resp = externalService.accountTransferInterPaymentByBankOne(
-                            amount=payload.amount,senderName=f"{user.lastname} {user.firstname}",
-                            senderAccount=payload.senderAccountNumber,destinationAccountNumber=payload.destinationAccountNumber,
-                            destinationAccountName=payload.destinationAccountName,destinationBankCode=payload.destinationBankCode,
-                            setting=setting,
-                            transactionId=transactionId,
-                            transType="INTERBANKTRANSFER",
-                            remark=f"Trf/{payload.remark if payload.remark else  payload.destinationAccountNumber }/{payload.amount}")
-                        else:
-                            resp = externalService.accountTransferInterPaymentByBankOne(
-                            amount=payload.amount,senderName=f"{user.lastname} {user.firstname}",
-                            senderAccount=payload.senderAccountNumber,destinationAccountNumber=payload.destinationAccountNumber,
-                            destinationAccountName=payload.destinationAccountName,destinationBankCode=payload.destinationBankCode,
-                            setting=setting,
-                            transactionId=transactionId,
-                            transType="INTERBANKTRANSFER",
-                            remark=f"Trf/{payload.remark if payload.remark else  payload.destinationAccountNumber }/{payload.amount}")
-                    if resp:
-                        createdTransaction.btcode= resp["code"]
-                        createdTransaction.provider = "BankOne"
-                        createdTransaction.reference = resp["mRef"]
-                        createdTransaction.transactionStatus = resp["message"]
-                        updatedTransaction = paymentQuery.create_transaction(db=db,transaction=createdTransaction)
-                        if updatedTransaction:
-                            if resp["code"] == "00":
-                                response.status_code = status.HTTP_200_OK
-                                return BaseResponse(
-                                    
-                                    statusCode=str(status.HTTP_200_OK),
-                                    statusDescription=SUCCESS
-                                )
-                            elif resp["code"] =="BT00":
-                                    # query transaction status
-                                logger.info("Log for requery later")
-                                logger.info(f"Transaction is in {resp['code']} state and will be requeried")
-                                response.status_code = status.HTTP_400_BAD_REQUEST
-                                return BaseResponse(
-                                    statusCode=str(status.HTTP_400_BAD_REQUEST),
-                                    statusDescription=resp["message"]
-                                )
-                            else:
-                                response.status_code = status.HTTP_400_BAD_REQUEST
-                                return BaseResponse(
-                                    statusCode=str(status.HTTP_400_BAD_REQUEST),
-                                    statusDescription=resp["message"]
-                                )
-                        else:
-                            response.status_code = status.HTTP_400_BAD_REQUEST
-                            return BaseResponse(
-                            
-                                statusCode=str(status.HTTP_400_BAD_REQUEST),
-                                statusDescription=resp["message"]
-                            )
-                    else:
-                        response.status_code = status.HTTP_400_BAD_REQUEST 
-                        return BaseResponse(
-                        
-                                statusCode=str(status.HTTP_400_BAD_REQUEST),
-                                statusDescription=PENDING,
-                        
-                        )
-                else:
-                    response.status_code = status.HTTP_400_BAD_REQUEST
-                    return BaseResponse(
-                        
-                                statusCode=str(status.HTTP_400_BAD_REQUEST),
-                                statusDescription=SYSTEMBUSY,
-                        
-                        )
-            #else:
-                #response.status_code = status.HTTP_400_BAD_REQUEST
-                #return BaseResponse(
-                #        
-                #                statusCode=str(status.HTTP_400_BAD_REQUEST),
-                #                statusDescription=INSUFFICIENTFUND,
-                #        
-                #        )
-            else:
-                response.status_code = status.HTTP_400_BAD_REQUEST
-                return BaseResponse(
-                        
-                                statusCode=str(status.HTTP_400_BAD_REQUEST),
-                                statusDescription=INVALIDACCOUNT,
-                        
-                        )
+        logger.info(f"started intra bank transfer to account {payload.receipient}")
+        params = {"FromAccountNumber": account.accountNumber,"Amount":payload.amount,"ToAccountNumber":payload.receipient,"RetrievalReference": util.generateId(),"Narration": f"USSD-TRF/{util.mask_email(payload.receipient)}",}
+        debitAccount =await externalService.accountTransferIntraByBankOne(setting=setting,params=params)
+        if debitAccount['statuscode'] == str(status.HTTP_200_OK):
+            #background_task.add_task(routeBillToProvider,payload=payload,biller=biller,account=account,db=db,setting=setting)
+            return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
+        elif debitAccount['statuscode'] == "51":
+            response.status_code = status.HTTP_400_BAD_REQUEST
+            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INSUFFICIENTFUND)
         else:
             response.status_code = status.HTTP_400_BAD_REQUEST
-            return BaseResponse(
-                        
-                                statusCode=str(status.HTTP_400_BAD_REQUEST),
-                                statusDescription=INVALIDBILLER,
-                        
-                        )
+            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=debitAccount['message'])
     except Exception as ex:
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
-        return BaseResponse(
-                statusCode=str(status.HTTP_400_BAD_REQUEST),
-                statusDescription=SYSTEMBUSY,
-        
-        )
+        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=SYSTEMBUSY,)
+async def bankTransferInter(request:Request,account:AccountModel,response: Response, setting: Setting, db: Session, payload: TransferRequest,background_task: BackgroundTasks):
+    try:
+        logger.info(f"started payment transfer for bank {payload.receipient} with account {payload.msisdn}")
+        params = {
+             "Amount":payload.amount,
+             "AppzoneAccount":"",
+            "Payer":f"{account.customer.lastname} {account.customer.firstname}",
+            "PayerAccountNumber" :account.accountNumber,
+            "ReceiverAccountNumber":payload.receipient,
+            "ReceiverAccountType":"",
+            "ReceiverBankCode":payload.bankcode,
+            "ReceiverPhoneNumber":"",
+            "ReceiverName":payload.receipientName,
+            "ReceiverBVN":"",
+            "ReceiverKYC":"",
+            "Narration":f"USSD-TRF/{util.mask_email(payload.receipient)}",
+            "TransactionReference":util.generateId(),
+            "NIPSessionID":"",}
+        debitAccount = await externalService.accountTransferInterByBankOne(setting=setting,params=params)
+        if debitAccount['statuscode'] == str(status.HTTP_200_OK):
+            #background_task.add_task(routeBillToProvider,payload=payload,biller=biller,account=account,db=db,setting=setting)
+            return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
+        elif debitAccount['statuscode'] == "51":
+            response.status_code = status.HTTP_400_BAD_REQUEST
+            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INSUFFICIENTFUND)
+        else:
+            response.status_code = status.HTTP_400_BAD_REQUEST
+            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=debitAccount['message'])
+    except Exception as ex:
+        logger.info(ex)
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=SYSTEMBUSY,)
+def isPossibleBank(account:str,bank:Bank):
+    logger.info(f"{account} bank {bank.Code} with code {bank.Name}")
+    return str(util.generateCheckDigit(account[:9], bank.Code)) == account[9]

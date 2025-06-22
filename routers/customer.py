@@ -38,7 +38,7 @@ async def get_customer(
     background_task: BackgroundTasks,
 ):
     try:
-        return customerservice.profile(
+        return await customerservice.profile(
                 request=request,
                 response=response,
                 setting=setting,
@@ -176,7 +176,7 @@ async def get_customer_balance(
     background_task: BackgroundTasks,
 ):
     try:
-        return customerservice.balance(
+        return await customerservice.balance(
                 account=account,
                 request=request,
                 response=response,

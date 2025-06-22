@@ -56,7 +56,7 @@ async def buy_airtime(
 async def buy_data_plan(
     payload: BillPaymentRequest,
     request: Request,
-    responses: Response,
+    response: Response,
     user: Annotated[Admin, Depends(authenticate_user)],
     setting: Annotated[Setting, Depends(getSystemSetting)],
     account:Annotated[AccountModel, Depends(validateTransactionPIN)],
@@ -65,79 +65,68 @@ async def buy_data_plan(
 ):
     try:
         if user:
-            return productservices.getCustomer(
-                request=request,
-                response=responses,
-                setting=setting,
+            return await productservices.buyDataPlan(
                 db=db,
-                user=user,
+                request=request,
+                payload=payload,
+                response=response,
+                setting=setting,
+                account=account,
                 background_task=background_task,
             )
         else:
-            responses.status_code = status.HTTP_400_BAD_REQUEST
+            response.status_code = status.HTTP_400_BAD_REQUEST
             return BaseResponse(
                 statusCode=str(status.HTTP_400_BAD_REQUEST),
                 statusDescription=INVALIDACCOUNT,
             )
     except Exception as ex:
         logger.error(ex)
-        responses.status_code = status.HTTP_400_BAD_REQUEST
+        response.status_code = status.HTTP_400_BAD_REQUEST
         return BaseResponse(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
             statusDescription=SYSTEMBUSY,
         )
-# bill payment
 @router.get("/list",
     response_model=ProductsResponse,
     response_model_exclude_unset=True,)
 async def get_products(
-    request: Request,
-    responses: Response,
+    response: Response,
     user: Annotated[Admin, Depends(authenticate_user)],
     setting: Annotated[Setting, Depends(getSystemSetting)],
     db: Annotated[Session, Depends(get_db)],
 ):
     try:
-        return await productservices.getProducts(db=db,request=request,response=responses,setting=setting)
+        return await productservices.getProducts(db=db,response=response,setting=setting)
     except Exception as ex:
         logger.error(ex)
-        responses.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return BaseResponse(
             statusCode=str(status.HTTP_500_INTERNAL_SERVER_ERROR),
             statusDescription=str(ex),
         )
-@router.get("/billers",
+@router.get("/billers/{productId}",
     response_model=ProductsResponse,
     response_model_exclude_unset=True,)
 async def get_product_billers(
-    request: Request,
-    responses: Response,
+    productId: str,
+    response: Response,
     user: Annotated[Admin, Depends(authenticate_user)],
     setting: Annotated[Setting, Depends(getSystemSetting)],
     db: Annotated[Session, Depends(get_db)],
 ):
     try:
         if user:
-            bill = productservices.getAllBill(db=db)
-            logger.info(bill)
-            if bill:
-                return ProductsResponse.model_validate(
-                    {
-                        "statusCode": str(status.HTTP_200_OK),
-                        "statusDescription": SUCCESS,
-                        "data": bill,
-                    }
-                )
-
+            return await productservices.getProductBillersByProductId(db=db,response=response,setting=setting,productId=productId)
         else:
-            responses.status_code = status.HTTP_400_BAD_REQUEST
+            response.status_code = status.HTTP_400_BAD_REQUEST
             return BaseResponse(
                 statusCode=str(status.HTTP_400_BAD_REQUEST),
                 statusDescription=UNKNOWNUSER,
             )
     except Exception as ex:
         logger.error(ex)
-        responses.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return BaseResponse(
             statusCode=str(status.HTTP_500_INTERNAL_SERVER_ERROR),
             statusDescription=str(ex),
@@ -147,28 +136,25 @@ async def get_product_billers(
     response_model_exclude_unset=True,)
 async def get_biller_packages(
     billerId: str,
-    request: Request,
-    responses: Response,
+    response: Response,
     user: Annotated[Admin, Depends(authenticate_user)],
     setting: Annotated[Setting, Depends(getSystemSetting)],
     db: Annotated[Session, Depends(get_db)],
 ):
     try:
-        return await productservices.getBillerPackages(db=db,request=request,response=responses,setting=setting,billerId=billerId)
+        return await productservices.getBillerPackages(db=db,response=response,setting=setting,billerId=billerId)
     except Exception as ex:
         logger.error(ex)
-        responses.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return BaseResponse(
             statusCode=str(status.HTTP_500_INTERNAL_SERVER_ERROR),
             statusDescription=str(ex),
         )
-
 @router.post("/name-enquiry",
     response_model=BaseResponse,
     response_model_exclude_unset=True)
 async def biller_name_enquiry(
     payload: BillNameEnquiryRequest,
-    request: Request,
     response: Response,
     user: Annotated[Admin, Depends(authenticate_user)],
     setting: Annotated[Setting, Depends(getSystemSetting)],
@@ -176,7 +162,7 @@ async def biller_name_enquiry(
 ):
     try:
         if user:
-            return productservices.billerEnquiry(payload=payload,request=request,response=response,setting=setting,db=db,user=user)
+            return await productservices.billNameEnquiry(payload=payload,response=response,setting=setting,db=db)
         response.status_code = status.HTTP_400_BAD_REQUEST
         return BaseResponse(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
@@ -204,7 +190,7 @@ async def biller_payment(
 ):
     try:
         if user:
-            return productservices.payBills(payload=payload,request=request,response=response,setting=setting,db=db,user=user,background_task=background_task)
+            return await productservices.billPayment(payload=payload,request=request,response=response,setting=setting,db=db,user=user,background_task=background_task)
         response.status_code = status.HTTP_400_BAD_REQUEST
         return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INVALIDACCOUNT,)
     except Exception as ex:

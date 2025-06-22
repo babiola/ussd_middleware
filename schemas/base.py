@@ -54,6 +54,7 @@ class TransferNameEnquiryRequest(BaseModel):
     telco:str
     sessionId:str
 class TransferRequest(PINRequest):
+    receipientName: Optional[str]= None
     amount: str
     bankcode: Optional[str]= None
 class TransferInterRequest(PINRequest):

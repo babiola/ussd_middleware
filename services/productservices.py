@@ -24,89 +24,72 @@ from fastapi import (
 logger = logging.getLogger(__name__)
 async def buyAirtime(db:Session,request:Request,payload:BillPaymentRequest,response:Response,setting:Setting,account:AccountModel,background_task: BackgroundTasks):
     try:
-        checkAccountBalance =await externalService.accountBalance(account=account.accountNumber,setting=setting)
-        if checkAccountBalance['statuscode'] == str(status.HTTP_200_OK):
-            if int(util.amountToKobo(checkAccountBalance['data']['WithdrawableBalance'])) > int(payload.amount):
-                airtime = await externalService.buyAirtime(setting=setting,account=account,amount=payload.amount,msisdn=util.formatPhoneFull(payload.msisdn),network=payload.network)
-                if airtime['statuscode'] == str(status.HTTP_200_OK):
-                    return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data=airtime['data'])
-                else:
-                    response.status_code = status.HTTP_400_BAD_REQUEST
-                    return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=airtime['message'])
+        logger.info(f"Started buy {payload.billerId} of {payload.amount} for {payload.receipient} from account {payload.accountNumber}")
+        biller = productQuery.getBillerByBillerId(db=db,billerId=payload.billerId)
+        if biller:
+            params = {"GLCode":setting.bankone_cust_gl,"RetrievalReference": util.generateId(),"AccountNumber": account.accountNumber,"Amount": payload.amount,"Narration":f"{biller.billerName}/{payload.receipient}/N{payload.amount}"}
+            debitAccount =await externalService.debitAccountByBankOne(setting=setting,params=params)
+            if debitAccount['statuscode'] == str(status.HTTP_200_OK):
+                background_task.add_task(routeBillToProvider,payload=payload,biller=biller,account=account,db=db,setting=setting)
+                return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
             else:
                 response.status_code = status.HTTP_400_BAD_REQUEST
                 return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INSUFFICIENTFUND)
         else:
             response.status_code = status.HTTP_400_BAD_REQUEST
-            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=checkAccountBalance['message'])
+            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INVALIDBILLER)
     except Exception as ex:
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
         return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)   
 async def buyDataPlan(db:Session,request:Request,payload:BillPaymentRequest,response:Response,setting:Setting,account:AccountModel,background_task: BackgroundTasks):
     try:
-        checkAccountBalance =await externalService.accountBalance(account=account.accountNumber,setting=setting)
-        if checkAccountBalance['statuscode'] == str(status.HTTP_200_OK):
-            if int(util.amountToKobo(checkAccountBalance['data']['WithdrawableBalance'])) > int(payload.amount):
-                data = await externalService.buyDataPlan(setting=setting,account=account,amount=payload.amount,msisdn=util.formatPhoneFull(payload.msisdn),network=payload.network,planId=payload.planId)
-                if data['statuscode'] == str(status.HTTP_200_OK):
-                    return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data=data['data'])
-                else:
-                    response.status_code = status.HTTP_400_BAD_REQUEST
-                    return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=data['message'])
+        logger.info(f"Started buy {payload.billerId} of {payload.amount} for {payload.receipient} from account {payload.accountNumber}")
+        biller = productQuery.getBillerByBillerId(db=db,billerId=payload.billerId)
+        if biller:
+            params = {"GLCode":setting.bankone_cust_gl,"RetrievalReference": util.generateId(),"AccountNumber": account.accountNumber,"Amount": payload.amount,"Narration":f"{biller.billerName}/{payload.receipient}/N{payload.amount}"}
+            debitAccount =await externalService.debitAccountByBankOne(setting=setting,params=params)
+            if debitAccount['statuscode'] == str(status.HTTP_200_OK):
+                background_task.add_task(routeBillToProvider,payload=payload,biller=biller,account=account,db=db,setting=setting)
+                return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
             else:
                 response.status_code = status.HTTP_400_BAD_REQUEST
                 return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INSUFFICIENTFUND)
         else:
             response.status_code = status.HTTP_400_BAD_REQUEST
-            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=checkAccountBalance['message'])
+            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INVALIDBILLER)
     except Exception as ex:
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
-        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)
-async def billNameEnquiry(db:Session,request:Request,payload:BillNameEnquiryRequest,response:Response,setting:Setting,account:AccountModel,background_task: BackgroundTasks):
-    try:
-        checkAccountBalance =await externalService.accountBalance(account=account.accountNumber,setting=setting)
-        if checkAccountBalance['statuscode'] == str(status.HTTP_200_OK):
-            if int(util.amountToKobo(checkAccountBalance['data']['WithdrawableBalance'])) > int(payload.amount):
-                bill = await externalService.billNameEnquiry(setting=setting,account=account,amount=payload.amount,msisdn=util.formatPhoneFull(payload.msisdn),billType=payload.billType,billId=payload.billId)
-                if bill['statuscode'] == str(status.HTTP_200_OK):
-                    return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data=bill['data'])
-                else:
-                    response.status_code = status.HTTP_400_BAD_REQUEST
-                    return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=bill['message'])
-            else:
-                response.status_code = status.HTTP_400_BAD_REQUEST
-                return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INSUFFICIENTFUND)
-        else:
-            response.status_code = status.HTTP_400_BAD_REQUEST
-            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=checkAccountBalance['message'])
-    except Exception as ex:
-        logger.info(ex)
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)
+        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)   
 async def billPayment(db:Session,request:Request,payload:BillPaymentRequest,response:Response,setting:Setting,account:AccountModel,background_task: BackgroundTasks):
     try:
-        checkAccountBalance =await externalService.accountBalance(account=account.accountNumber,setting=setting)
-        if checkAccountBalance['statuscode'] == str(status.HTTP_200_OK):
-            if int(util.amountToKobo(checkAccountBalance['data']['WithdrawableBalance'])) > int(payload.amount):
-                bill = await externalService.billPayment(setting=setting,account=account,amount=payload.amount,msisdn=util.formatPhoneFull(payload.msisdn),billType=payload.billType,billId=payload.billId)
-                if bill['statuscode'] == str(status.HTTP_200_OK):
-                    return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data=bill['data'])
-                else:
-                    response.status_code = status.HTTP_400_BAD_REQUEST
-                    return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=bill['message'])
+        logger.info(f"Started buy {payload.billerId} of {payload.amount} for {payload.receipient} from account {payload.accountNumber}")
+        biller = productQuery.getBillerByBillerId(db=db,billerId=payload.billerId)
+        if biller:
+            params = {"GLCode":setting.bankone_cust_gl,"RetrievalReference": util.generateId(),"AccountNumber": account.accountNumber,"Amount": payload.amount,"Narration":f"{biller.billerName}/{payload.receipient}/N{payload.amount}"}
+            debitAccount =await externalService.debitAccountByBankOne(setting=setting,params=params)
+            if debitAccount['statuscode'] == str(status.HTTP_200_OK):
+                background_task.add_task(routeBillToProvider,payload=payload,biller=biller,account=account,db=db,setting=setting)
+                return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
             else:
                 response.status_code = status.HTTP_400_BAD_REQUEST
                 return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INSUFFICIENTFUND)
         else:
             response.status_code = status.HTTP_400_BAD_REQUEST
-            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=checkAccountBalance['message'])
+            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INVALIDBILLER)
+    except Exception as ex:
+        logger.info(ex)
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)  
+async def billNameEnquiry(db:Session,payload:BillNameEnquiryRequest,response:Response,setting:Setting):
+    try:
+        return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data={"customerName":"Adamu Chijioke Omolaja"})
     except Exception as ex:
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
         return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)
-async def getProducts(db:Session,request:Request,response:Response,setting:Setting):
+async def getProducts(db:Session,response:Response,setting:Setting):
     try:
         products = await productQuery.getProduts(db=db)
         return ProductsResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data=products)
@@ -114,7 +97,7 @@ async def getProducts(db:Session,request:Request,response:Response,setting:Setti
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
         return ProductsResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)
-async def getProductByProductId(db:Session,request:Request,response:Response,setting:Setting,productId:str):
+async def getProductByProductId(db:Session,response:Response,setting:Setting,productId:str):
     try:
         product = await productQuery.getProductById(db=db,productId=productId)
         if product:
@@ -126,7 +109,7 @@ async def getProductByProductId(db:Session,request:Request,response:Response,set
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
         return ProductResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)
-async def getProductBillersByProductId(db:Session,request:Request,response:Response,setting:Setting,productId:str):
+async def getProductBillersByProductId(db:Session,response:Response,setting:Setting,productId:str):
     try:
         billers = await productQuery.getBillersByproductId(db=db,productId=productId)
         return ProductTypesResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data=billers)
@@ -134,11 +117,17 @@ async def getProductBillersByProductId(db:Session,request:Request,response:Respo
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
         return ProductTypesResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)
-async def getBillerPackages(db:Session,request:Request,response:Response,setting:Setting,billerId:str):
+async def getBillerPackages(db:Session,response:Response,setting:Setting,billerId:str):
     try:
         plans = await productQuery.getPackagesBillerId(db=db,billerId=billerId)
         return PackagesResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data=plans)
     except Exception as ex:
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
+        return PackagesResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)
+def routeBillToProvider(payload:BillPaymentRequest,biller:ProductTypeModel,account:AccountModel,db:Session,setting:Setting):
+    try:
+        return PackagesResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
+    except Exception as ex:
+        logger.info(ex)
         return PackagesResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)

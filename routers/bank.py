@@ -6,7 +6,7 @@ from fastapi import (
     status,
     Response,
     Request,
-    BackgroundTasks,
+    BackgroundTasks,Query
 )
 from models.model import *
 from schemas.bank import *
@@ -24,8 +24,6 @@ from utils import util
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/transfer"
 )
-
-# Intra
 @router.post(
     "/enquiry/inMFB",
     response_model=BaseResponse,
@@ -60,6 +58,7 @@ async def bank_name_enquiry(
     response_model_exclude_unset=True,
 )
 async def post_intra_bank_transfer(
+    payload: TransferRequest,
     request: Request,
     response: Response,
     user: Annotated[Admin, Depends(authenticate_user)],
@@ -70,12 +69,13 @@ async def post_intra_bank_transfer(
 ):
     try:
         if user:
-            return bankservice.getAdmin(
+            return await bankservice.bankTransferIntra(
                 request=request,
+                account=account,
                 response=response,
                 setting=setting,
                 db=db,
-                user=user,
+                payload=payload,
                 background_task=background_task,
             )
         else:
@@ -91,7 +91,6 @@ async def post_intra_bank_transfer(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
             statusDescription=SYSTEMBUSY,
         )
-# NIP
 @router.get("/banks", 
     response_model=BanksResponse,
     response_model_exclude_unset=True)
@@ -100,10 +99,11 @@ async def bank_list(
     response: Response,
     user: Annotated[Admin, Depends(authenticate_user)],
     setting: Annotated[Setting, Depends(getSystemSetting)],
+    search: str = Query(None)
 ):
     try:
         if user:
-            return bankservice.banks(request=request,response=response,setting=setting)
+            return await bankservice.banks(request=request,response=response,setting=setting,search=search)
     except Exception as ex:
         logger.error(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
@@ -120,10 +120,9 @@ async def get_possible_banks(
     user: Annotated[Admin, Depends(authenticate_user)],
     setting: Annotated[Setting, Depends(getSystemSetting)],
     db: Annotated[Session, Depends(get_db)],
-    background_task: BackgroundTasks,
 ):
     try:
-        return bankservice.possibleBank(
+        return await bankservice.possibleBank(
                 request=request,
                 response=response,
                 setting=setting,
@@ -148,7 +147,6 @@ async def post_nip_name_enquiry(
     user: Annotated[Admin, Depends(authenticate_user)],
     setting: Annotated[Setting, Depends(getSystemSetting)],
     db: Annotated[Session, Depends(get_db)],
-    background_task: BackgroundTasks,
 ):
     try:
         return await bankservice.bankNameEnquiry(
@@ -171,6 +169,7 @@ async def post_nip_name_enquiry(
     response_model_exclude_unset=True,
 )
 async def post_nip_bank_transfer(
+    payload: TransferRequest,
     request: Request,
     response: Response,
     user: Annotated[Admin, Depends(authenticate_user)],
@@ -180,20 +179,14 @@ async def post_nip_bank_transfer(
     background_task: BackgroundTasks,
 ):
     try:
-        if user:
-            return bankservice.getAdmin(
+        return await bankservice.bankTransferInter(
                 request=request,
+                account=account,
                 response=response,
                 setting=setting,
                 db=db,
-                user=user,
+                payload=payload,
                 background_task=background_task,
-            )
-        else:
-            response.status_code = status.HTTP_400_BAD_REQUEST
-            return BaseResponse(
-                statusCode=str(status.HTTP_400_BAD_REQUEST),
-                statusDescription=INVALIDACCOUNT,
             )
     except Exception as ex:
         logger.error(ex)

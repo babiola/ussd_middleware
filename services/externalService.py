@@ -43,7 +43,7 @@ async def checkBvn(setting: Setting,bvn:str,bvnType:str):
         response["statuscode"] = "500"
         response["message"] = SYSTEMBUSY
     return response
-def openDetailedAccount(setting: Setting,params: dict = None):
+async def openDetailedAccount(setting: Setting,params: dict = None):
     response = {}
     try:
         logger.info(f"started get customer records for account Number {params} with BankOne")
@@ -65,7 +65,7 @@ def openDetailedAccount(setting: Setting,params: dict = None):
         response["statuscode"] = "500"
         response["message"] = SYSTEMBUSY
     return response
-def openAccount(setting: Setting, params: dict = None):
+async def openAccount(setting: Setting, params: dict = None):
     response = {}
     try:
         logger.info(
@@ -203,7 +203,90 @@ async def accountEnquiryIntraByBankOne(setting: Setting,params: dict = None):
         response["statuscode"] = "500"
         response["message"] = SYSTEMBUSY
     return response
-
+async def debitAccountByBankOne(setting: Setting,params: dict = None):
+    response = {
+        "Provider":"BANKONE"
+    }
+    try:
+        logger.info(f"started debit with BankOne")
+        params["Token"] = setting.bankone_token
+        bankOneResponse = util.http(url=f"{setting.bankone_url}thirdpartyapiservice/apiservice/CoreTransactions/Debit",params=params)
+        if bankOneResponse.status_code == 200:
+            resp = bankOneResponse.json()
+            if resp["IsSuccessful"] is True and resp["ResponseCode"] =="00":
+                 response["statuscode"] = str(bankOneResponse.status_code)
+                 response["message"] = resp["ResponseMessage"]
+                 response["data"] = resp["Reference"]
+            elif resp["ResponseCode"] in ["91","06"]:
+                 response["statuscode"] = str(bankOneResponse.status_code)
+                 response["message"] = resp["ResponseMessage"]
+                 response["data"] = resp["Reference"]
+            else:
+                response["statuscode"] = "400"
+                response["message"] = resp["ResponseMessage"]
+        else:
+            response["statuscode"] = str(bankOneResponse.status_code)
+            response["message"] = SYSTEMBUSY
+    except Exception as ex:
+        logger.info(ex)
+        response["statuscode"] = "500"
+        response["message"] = PENDING
+    return response
+async def accountTransferIntraByBankOne(setting: Setting,params: dict = None):
+    response = {}
+    try:
+        logger.info(f"started intra payment transfer for bank {params} with BankOne")
+        params["AuthenticationKey"] = setting.bankone_token
+        bankOneResponse = util.http(url=f"{setting.bankone_url}thirdpartyapiservice/apiservice/CoreTransactions/LocalFundsTransfer",params=params)
+        if bankOneResponse.status_code == 200:
+            resp = bankOneResponse.json()
+            if resp["IsSuccessful"] is True and resp["ResponseCode"] =="00":
+                 response["statuscode"] = str(bankOneResponse.status_code)
+                 response["message"] = resp["ResponseMessage"]
+                 response["data"] = resp["Reference"]
+            elif resp["ResponseCode"] in ["91","06"]:
+                 response["statuscode"] = str(bankOneResponse.status_code)
+                 response["message"] = resp["ResponseMessage"]
+                 response["data"] = resp["Reference"]
+            else:
+                response["statuscode"] = "400"
+                response["message"] = resp["ResponseMessage"]
+        else:
+            response["statuscode"] = str(bankOneResponse.status_code)
+            response["message"] = SYSTEMBUSY
+    except Exception as ex:
+        logger.info(ex)
+        response["statuscode"] = "500"
+        response["message"] = SYSTEMBUSY
+    return response
+async def accountTransferInterByBankOne(setting: Setting,params: dict = None):
+    response = {}
+    try:
+        logger.info(f"started payment transfer for bank {params} with BankOne")
+        params["Token"] = setting.bankone_token
+        bankOneResponse = util.http(url=f"{setting.bankone_url}thirdpartyapiservice/apiservice/Transfer/InterBankTransfer",params=params)
+        if bankOneResponse.status_code == 200:
+            resp = bankOneResponse.json()
+            if resp["IsSuccessful"] is True and resp["ResponseCode"] =="00":
+                 response["statuscode"] = str(bankOneResponse.status_code)
+                 response["message"] = resp["ResponseMessage"]
+                 response["data"] = resp["Reference"]
+                 response["mRef"] = resp["UniqueIdentifier"]
+            elif resp["ResponseCode"] in ["91","06"]:
+                 response["statuscode"] = str(bankOneResponse.status_code)
+                 response["message"] = resp["ResponseMessage"]
+                 response["data"] = resp["Reference"]
+            else:
+                response["statuscode"] = "400"
+                response["message"] = resp["ResponseMessage"]
+        else:
+            response["statuscode"] = str(bankOneResponse.status_code)
+            response["message"] = SYSTEMBUSY
+    except Exception as ex:
+        logger.info(ex)
+        response["statuscode"] = "500"
+        response["message"] = SYSTEMBUSY
+    return response
 
 
 
@@ -322,122 +405,7 @@ def creditAccountByBankOne(
         response["statuscode"] = "500"
         response["message"] = SYSTEMBUSY
     return response
-def debitAccountByBankOne(
-        user:Customer,
-        accountToBeDebited:str,
-        setting: Setting, 
-        db: Session, 
-        amount: str,
-        remarks:str
-):
-    response = {
-        "Provider":"BANKONE"
-    }
-    try:
-        logger.info(f"started debit with BankOne")
-        params = {
-                    "RetrievalReference": util.generateId(),
-                    "AccountNumber": accountToBeDebited,
-                    "Amount": amount,
-                    "Narration":remarks,
-                    "Token": setting.bankone_token,
-                    "GLCode":setting.bankone_cust_gl  #"1531"
-                    }
-        bankOneResponse = util.http(
-                         url=f"{setting.bankone_url}thirdpartyapiservice/apiservice/CoreTransactions/Debit",
-                        params=params)
-        resp = bankOneResponse.json()
-        if resp:
-            if bankOneResponse.status_code == 200 and resp["IsSuccessful"] is True:
-                 if  resp["ResponseCode"] == str(bankOneResponse.status_code):
-                      response["statuscode"] = resp["ResponseCode"]
-                      response["message"] = resp["ResponseMessage"]
-                      response["reference"] = resp["Reference"]
-                 elif resp["ResponseCode"] in ["91","06"]:
-                      response["statuscode"] = "500"
-                      response["message"] = resp["ResponseMessage"]
-                      response["reference"] = resp["Reference"]
-                 else:
-                      response["statuscode"] = "BT001"
-                      response["message"] = resp["ResponseMessage"]    
-                      response["reference"] = resp["Reference"]
-            else:
-                response["statuscode"] = "BT00F"
-                response["message"] = resp["ResponseMessage"]
-                response["reference"] = None
-        else:
-            response["statuscode"] = "BT00F"
-            response["message"] = SYSTEMBUSY
-            response["reference"] = None
-    except Exception as ex:
-        logger.info(ex)
-        response["statuscode"] = "500"
-        response["message"] = PENDING
-        response["reference"] = None
-    return response
-def accountTransferInterPaymentByBankOne(
-        amount:str,senderName:str,senderAccount:str,AccountNumber:str,destinationAccountName:str,
-    BankCode: str, setting: Setting, transactionId: str, remark: str,transType:str
-):
-    response = {}
-    try:
-        logger.info(
-            f"started payment transfer for bank {BankCode} with account {AccountNumber} with BankOne"
-        )
-        params = {
-                            "Amount":amount,
-                            "AppzoneAccount":"",
-                            "Payer":senderName,
-                            "PayerAccountNumber" :senderAccount,
-                            "ReceiverAccountNumber":AccountNumber,
-                            "ReceiverAccountType":"",
-                            "ReceiverBankCode":BankCode,
-                            "ReceiverPhoneNumber":"",
-                            "ReceiverName":destinationAccountName,
-                            "ReceiverBVN":"",
-                            "ReceiverKYC":"",
-                            "Narration":remark,
-                            "TransactionReference":transactionId,
-                            "NIPSessionID":"",
-                            "Token":setting.bankone_token
-                        }
-        bankOneResponse = util.http(
-                        url=f"{setting.bankone_url}thirdpartyapiservice/apiservice/Transfer/InterBankTransfer",
-                        params=params)
-        resp = bankOneResponse.json()
-        if resp:
-            if bankOneResponse.status_code == 200 and resp["IsSuccessFul"] is True:
-                 if resp["Status"] == "Successful" or resp["ResponseCode"] == str(bankOneResponse.status_code):
-                      response["statuscode"] = resp["ResponseCode"]
-                      response["message"] = SUCCESS
-                      response["reference"] = resp["Reference"]
-                      response["mRef"] = resp["UniqueIdentifier"]
-                 elif resp["ResponseCode"] in ["91","06"]:
-                      response["statuscode"] = "500"
-                      response["message"] = PENDING
-                      response["reference"] = resp["Reference"]
-                      response["mRef"] = resp["UniqueIdentifier"]
-                 else:
-                      response["statuscode"] = "BT001"
-                      response["message"] = FAILED
-                      response["reference"] = resp["Reference"]
-                      response["mRef"] = resp["UniqueIdentifier"]     
-            else:
-                response["statuscode"] = "BT00F"
-                response["mRef"] = resp["UniqueIdentifier"]
-                response["message"] = resp["ResponseDescription"] if resp["ResponseDescription"] else str(resp["Status"])
-        else:
-            response["statuscode"] = "BT00F"
-            response["message"] = SYSTEMBUSY
-    except Exception as ex:
-        logger.info(ex)
-        response["statuscode"] = "500"
-        response["message"] = SYSTEMBUSY
-    return response
-def accountTransferIntraPaymentByBankOne(
-        amount:str,senderName:str,senderAccount:str,AccountNumber:str,destinationAccountName:str,
-    BankCode: str, setting: Setting, transactionId: str, remark: str,transType:str
-):
+def accountTransferIntraPaymentByBankOne(setting: Setting,params: dict = None):
     response = {}
     try:
         logger.info(

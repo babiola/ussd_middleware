@@ -19,7 +19,7 @@ from fastapi import (
     BackgroundTasks,
 )
 logger = logging.getLogger(__name__)
-def profile(
+async def profile(
         request: Request,
         response: Response,
         setting: Setting,
@@ -124,7 +124,7 @@ async def open_account(db:Session,payload:OpenAccountRequest,response:Response,s
                             "CustomerSignature": "",
                             "IdentificationImage": retrieveBvn['base64Image']
                         }
-                        createAccount = externalService.openAccount(setting=setting,params=params)
+                        createAccount =await externalService.openAccount(setting=setting,params=params)
                         logger.info(createAccount)
                         if createAccount['statuscode'] == str(status.HTTP_200_OK):
                             customer = CustomerModel(
@@ -202,6 +202,7 @@ async def create_customer(db:Session,request:Request,payload:EnrolAccountRequest
                         checkCustomer.pin = util.get_password_hash(payload.pin)
                         saved = customerQuery.create(db=db,model=checkCustomer)
                         if saved:
+                            await redisUtil.delete_cache(key=f"account:{payload.msisdn}")
                             return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
                         else:
                             response.status_code = status.HTTP_400_BAD_REQUEST
@@ -257,17 +258,17 @@ async def create_customer(db:Session,request:Request,payload:EnrolAccountRequest
         return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)   
 async def balance(account:AccountModel,request: Request,response: Response,setting: Setting,db: Session,background_task: BackgroundTasks):
     try:
-        account =await externalService.accountBalance(setting=setting,account=account.accountNumber)
-        if account:
-            account.balance = account['data']['WithdrawableBalance'] if 'WithdrawableBalance' in account['data'] else "0"
-            account.updated_at = datetime.now()
-            background_task.add_task(customerQuery.create, db=db, model=account)
-            logger.info(f"Account Balance for {account.accountNumber} is {account.balance}")
-            if account['statuscode'] == str(status.HTTP_200_OK):
-                return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data=account['data']['WithdrawableBalance'])
+        checkBalance = await externalService.accountBalance(setting=setting,account=account.accountNumber)
+        if checkBalance:
+            if checkBalance['statuscode'] == str(status.HTTP_200_OK):
+                account.balance = checkBalance['data']['WithdrawableBalance'] if 'WithdrawableBalance' in checkBalance['data'] else "0"
+                account.updated_at = datetime.now()
+                background_task.add_task(customerQuery.create, db=db, model=account)
+                logger.info(f"Account Balance for {account.accountNumber} is {account.balance}")
+                return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data=checkBalance['data']['WithdrawableBalance'])
             else:
                 response.status_code = status.HTTP_400_BAD_REQUEST
-                return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=account['message'])
+                return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=checkBalance['message'])
         else:
             response.status_code = status.HTTP_400_BAD_REQUEST
             return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=BALANCEERROR)
