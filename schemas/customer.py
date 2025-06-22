@@ -6,13 +6,13 @@ from pydantic import BaseModel,field_validator
 from schemas.base import BaseResponse
 
 class CustomerBase(BaseModel):
-    active: bool
-    isUssdEnrolled: bool
-    indemnitySigned: bool
-    blacklisted: bool
+    active:  Union[bool,None]=False
+    isUssdEnrolled:  Union[bool,None]=False
+    indemnitySigned:  Union[bool,None]=False
+    blacklisted:  Union[bool,None]=True
     customerNumber: str
     phonenumber: str
-    hasPin: bool
+    hasPin: Union[bool,None]=False
     @field_validator("phonenumber")
     def phoneNumber_validator(cls, phonenumber):
         phone = util.formatPhoneFull(msisdn=phonenumber)
