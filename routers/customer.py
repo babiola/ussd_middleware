@@ -91,7 +91,6 @@ async def post_customer_bvn_verification(
     "/create-customer",
     response_model=BaseResponse,
     response_model_exclude_unset=True,
-    name="Open account"
 )
 async def create_customer(
     payload:EnrolAccountRequest,
@@ -127,9 +126,8 @@ async def create_customer(
         )
 @router.post(
     "/create-account",
-    response_model=CustomerResponse,
+    response_model=BaseResponse,
     response_model_exclude_unset=True,
-    name="Open account"
 )
 async def post_customer_open_new_account(
     payload:OpenAccountRequest,
@@ -187,42 +185,6 @@ async def get_customer_balance(
     except Exception as ex:
         logger.error(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
-        return BaseResponse(
-            statusCode=str(status.HTTP_400_BAD_REQUEST),
-            statusDescription=SYSTEMBUSY,
-        )
-@router.post(
-    "/enrolment",
-    response_model=CustomerResponse,
-    response_model_exclude_unset=True,
-)
-async def post_customer_enrolment_ussd_profile(
-    request: Request,
-    responses: Response,
-    user: Annotated[Customer, Depends(authenticate_user)],
-    setting: Annotated[Setting, Depends(getSystemSetting)],
-    db: Annotated[Session, Depends(get_db)],
-    background_task: BackgroundTasks,
-):
-    try:
-        if user:
-            return customerservice.getCustomer(
-                request=request,
-                response=responses,
-                setting=setting,
-                db=db,
-                user=user,
-                background_task=background_task,
-            )
-        else:
-            responses.status_code = status.HTTP_400_BAD_REQUEST
-            return BaseResponse(
-                statusCode=str(status.HTTP_400_BAD_REQUEST),
-                statusDescription=INVALIDACCOUNT,
-            )
-    except Exception as ex:
-        logger.error(ex)
-        responses.status_code = status.HTTP_400_BAD_REQUEST
         return BaseResponse(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
             statusDescription=SYSTEMBUSY,

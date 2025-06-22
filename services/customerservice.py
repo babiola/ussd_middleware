@@ -124,7 +124,7 @@ async def open_account(db:Session,payload:OpenAccountRequest,response:Response,s
                             "CustomerSignature": "",
                             "IdentificationImage": retrieveBvn['base64Image']
                         }
-                        createAccount =await externalService.openAccount(setting=setting,params=params)
+                        createAccount = await externalService.openAccount(setting=setting,params=params)
                         logger.info(createAccount)
                         if createAccount['statuscode'] == str(status.HTTP_200_OK):
                             customer = CustomerModel(
