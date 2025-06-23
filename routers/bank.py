@@ -6,99 +6,92 @@ from fastapi import (
     status,
     Response,
     Request,
-    BackgroundTasks,
+    BackgroundTasks,Query
 )
+from models.model import *
 from schemas.bank import *
+from schemas.base import *
 from schemas.setting import Setting
 from sqlalchemy.orm import Session
 from utils.constant import *
 from typing import Annotated
-from utils.dependencies import getSystemSetting, authenticate_user
+from utils.dependencies import getSystemSetting, authenticate_user,validateTransactionPIN
 from utils.database import get_db
 from services import bankservice
 from schemas.admin import Admin
 from utils import util
 
 logger = logging.getLogger(__name__)
-router = APIRouter(
+router = APIRouter(prefix="/transfer"
 )
-
-# Intra
 @router.post(
-    "/transfer/enquiry/inMFB",
+    "/enquiry/inMFB",
     response_model=BaseResponse,
     response_model_exclude_unset=True,
 )
 async def bank_name_enquiry(
+    payload: TransferNameEnquiryRequest,
     request: Request,
-    responses: Response,
+    response: Response,
     user: Annotated[Admin, Depends(authenticate_user)],
     setting: Annotated[Setting, Depends(getSystemSetting)],
     db: Annotated[Session, Depends(get_db)],
-    background_task: BackgroundTasks,
 ):
     try:
-        if user:
-            return Adminservice.getAdmin(
+        return await bankservice.bankNameEnquiry(
                 request=request,
-                response=responses,
-                setting=setting,tenant=tenant,
+                response=response,
+                setting=setting,
                 db=db,
-                user=user,
-                background_task=background_task,
-            )
-        else:
-            responses.status_code = status.HTTP_400_BAD_REQUEST
-            return BaseResponse(
-                statusCode=str(status.HTTP_400_BAD_REQUEST),
-                statusDescription=INVALIDACCOUNT,
+                payload=payload
             )
     except Exception as ex:
         logger.error(ex)
-        responses.status_code = status.HTTP_400_BAD_REQUEST
+        response.status_code = status.HTTP_400_BAD_REQUEST
         return BaseResponse(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
             statusDescription=SYSTEMBUSY,
         )
 @router.post(
-    "/transfer/inMFB",
+    "/inMFB",
     response_model=BaseResponse,
     response_model_exclude_unset=True,
 )
 async def post_intra_bank_transfer(
+    payload: TransferRequest,
     request: Request,
-    responses: Response,
+    response: Response,
     user: Annotated[Admin, Depends(authenticate_user)],
     setting: Annotated[Setting, Depends(getSystemSetting)],
     db: Annotated[Session, Depends(get_db)],
+    account:Annotated[AccountModel, Depends(validateTransactionPIN)],
     background_task: BackgroundTasks,
 ):
     try:
         if user:
-            return Adminservice.getAdmin(
+            return await bankservice.bankTransferIntra(
                 request=request,
-                response=responses,
-                setting=setting,tenant=tenant,
+                account=account,
+                response=response,
+                setting=setting,
                 db=db,
-                user=user,
+                payload=payload,
                 background_task=background_task,
             )
         else:
-            responses.status_code = status.HTTP_400_BAD_REQUEST
+            response.status_code = status.HTTP_400_BAD_REQUEST
             return BaseResponse(
                 statusCode=str(status.HTTP_400_BAD_REQUEST),
                 statusDescription=INVALIDACCOUNT,
             )
     except Exception as ex:
         logger.error(ex)
-        responses.status_code = status.HTTP_400_BAD_REQUEST
+        response.status_code = status.HTTP_400_BAD_REQUEST
         return BaseResponse(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
             statusDescription=SYSTEMBUSY,
         )
-
-# NIP
-@router.get("/transfer/banks", 
+@router.get("/banks", 
     response_model=BanksResponse,
     response_model_exclude_unset=True)
 async def bank_list(
@@ -106,119 +99,98 @@ async def bank_list(
     response: Response,
     user: Annotated[Admin, Depends(authenticate_user)],
     setting: Annotated[Setting, Depends(getSystemSetting)],
-    #db: Annotated[Session, Depends(get_db)],
+    search: str = Query(None)
 ):
     try:
         if user:
-            return bankservice.banks(request=request,response=response,setting=setting)
+            return await bankservice.banks(request=request,response=response,setting=setting,search=search)
     except Exception as ex:
         logger.error(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
         return BanksResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=str(ex),)
 @router.post(
-    "/transfer/possible-banks",
-    response_model=BaseResponse,
+    "/possible-banks",
+    response_model=BanksResponse,
     response_model_exclude_unset=True
 )
 async def get_possible_banks(
+    payload:TransferPossibleRequest,
     request: Request,
-    responses: Response,
+    response: Response,
     user: Annotated[Admin, Depends(authenticate_user)],
     setting: Annotated[Setting, Depends(getSystemSetting)],
     db: Annotated[Session, Depends(get_db)],
-    background_task: BackgroundTasks,
 ):
     try:
-        if user:
-            return Adminservice.getAdmin(
+        return await bankservice.possibleBank(
                 request=request,
-                response=responses,
-                setting=setting,tenant=tenant,
-                db=db,
-                user=user,
-                background_task=background_task,
-            )
-        else:
-            responses.status_code = status.HTTP_400_BAD_REQUEST
-            return BaseResponse(
-                statusCode=str(status.HTTP_400_BAD_REQUEST),
-                statusDescription=INVALIDACCOUNT,
+                response=response,
+                setting=setting,
+                payload=payload,
             )
     except Exception as ex:
         logger.error(ex)
-        responses.status_code = status.HTTP_400_BAD_REQUEST
-        return BaseResponse(
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return BanksResponse(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
             statusDescription=SYSTEMBUSY,
         )
 @router.post(
-    "/transfer/enquiry/NIP",
+    "/enquiry/toNIP",
     response_model=BaseResponse,
     response_model_exclude_unset=True,
 )
 async def post_nip_name_enquiry(
+    payload: TransferNameEnquiryRequest,
     request: Request,
-    responses: Response,
+    response: Response,
     user: Annotated[Admin, Depends(authenticate_user)],
     setting: Annotated[Setting, Depends(getSystemSetting)],
     db: Annotated[Session, Depends(get_db)],
-    background_task: BackgroundTasks,
 ):
     try:
-        if user:
-            return Adminservice.getAdmin(
+        return await bankservice.bankNameEnquiry(
                 request=request,
-                response=responses,
-                setting=setting,tenant=tenant,
+                response=response,
+                setting=setting,
                 db=db,
-                user=user,
-                background_task=background_task,
-            )
-        else:
-            responses.status_code = status.HTTP_400_BAD_REQUEST
-            return BaseResponse(
-                statusCode=str(status.HTTP_400_BAD_REQUEST),
-                statusDescription=INVALIDACCOUNT,
+                payload=payload
             )
     except Exception as ex:
         logger.error(ex)
-        responses.status_code = status.HTTP_400_BAD_REQUEST
+        response.status_code = status.HTTP_400_BAD_REQUEST
         return BaseResponse(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
             statusDescription=SYSTEMBUSY,
         )
 @router.post(
-    "/transfer/NIP",
+    "/toNIP",
     response_model=BaseResponse,
     response_model_exclude_unset=True,
 )
 async def post_nip_bank_transfer(
+    payload: TransferRequest,
     request: Request,
-    responses: Response,
+    response: Response,
     user: Annotated[Admin, Depends(authenticate_user)],
     setting: Annotated[Setting, Depends(getSystemSetting)],
     db: Annotated[Session, Depends(get_db)],
+    account:Annotated[AccountModel, Depends(validateTransactionPIN)],
     background_task: BackgroundTasks,
 ):
     try:
-        if user:
-            return Adminservice.getAdmin(
+        return await bankservice.bankTransferInter(
                 request=request,
-                response=responses,
-                setting=setting,tenant=tenant,
+                account=account,
+                response=response,
+                setting=setting,
                 db=db,
-                user=user,
+                payload=payload,
                 background_task=background_task,
-            )
-        else:
-            responses.status_code = status.HTTP_400_BAD_REQUEST
-            return BaseResponse(
-                statusCode=str(status.HTTP_400_BAD_REQUEST),
-                statusDescription=INVALIDACCOUNT,
             )
     except Exception as ex:
         logger.error(ex)
-        responses.status_code = status.HTTP_400_BAD_REQUEST
+        response.status_code = status.HTTP_400_BAD_REQUEST
         return BaseResponse(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
             statusDescription=SYSTEMBUSY,

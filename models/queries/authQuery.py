@@ -4,11 +4,7 @@ from sqlalchemy.sql import select,update
 from models.model import *
 from schemas.account import Account
 import logging
-
 logger = logging.getLogger(__name__)
-
-
-
 def userByEmailOrPhone(db: Session, email: str,phonenumber:str):
     return db.query(CustomerModel).filter(or_(CustomerModel.email == email, CustomerModel.phonenumber == phonenumber)).first()
 def get_latest_otp(db: Session, userId: int):
@@ -17,19 +13,12 @@ def get_otp_by_code(db: Session,code:str, userId: int):
     return db.query(OTPModel).filter(OTPModel.otp == code).filter(OTPModel.user_id == userId).filter(OTPModel.status == OTPStatusEnum.OPEN).first()
 def otpViaCodeAndServicename(db: Session,code:str,servicename:str,userId: int):
     return db.query(OTPModel).filter(OTPModel.otp == code).filter(OTPModel.user_id == userId).filter(OTPModel.status == OTPStatusEnum.OPEN).filter(OTPModel.servicename == servicename).first()
-
-
 def getCheckAdmin(db: Session, username: str):
     return db.query(AdminModel).filter(AdminModel.email == username).first()
 def queryAllAdminUsers(db: Session):
     return db.query(AdminModel).all()
-
-
 def get_user_bvn(db: Session, bvn: str):
     return db.query(CustomerModel).filter(CustomerModel.bvn == bvn).first()
-
-
-
 def get_user_by_id(id: int, db: Session):
     return db.query(CustomerModel).filter(CustomerModel.id == id).first()
 def create_account(db: Session, user: CustomerModel):

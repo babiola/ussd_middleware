@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, Request
 from utils.dependencies import middlewares
 from middleware.http import LoggingMiddleware
-from routers import bank,dataplan, customer, transaction,product
+from routers import bank, customer, transaction,product
 
 logging.config.fileConfig("logging.conf", disable_existing_loggers=False)
 logger = logging.getLogger(__name__)

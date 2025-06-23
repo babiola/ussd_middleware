@@ -2,40 +2,73 @@ from pydantic import BaseModel,field_validator
 from typing import Dict, Union,Optional
 from utils import util
 
-
 class BaseResponse(BaseModel):
     statusCode: str
     statusDescription: str
     data: Union[Dict, str] = None
-class PINRequest(BaseModel):
-    pin: str
-class TransferIntraRequest(PINRequest):
-    amount: str
-    phoneNumber: str
+class BvnRequest(BaseModel):
+    bvn: str
+    dob: str
+    msisdn: str
+    telco:str
+    sessionId:str
+class OpenAccountRequest(BaseModel):
+    bvn: str
+    dob: str
+    msisdn: str
+    telco:str
+    sessionId:str
+    pin:str
+class EnrolAccountRequest(BaseModel):
+    bvn: str
     accountNumber: str
-    receipientAccountNumber: str
+    msisdn: str
+    telco:str
+    sessionId:str
+    pin:str
+class CreatePINRequest(BaseModel):
+    pin: str
+    confirmPin: str
+class ChangePINRequest(BaseModel):
+    oldPin: str
+    pin: str
+    confirmPin: str
+class PINRequest(BaseModel):
+    pin: Optional[str]= None
+    accountNumber: str
+    msisdn: str
+    receipient:str
+    telco:str
+    sessionId:str
+class CheckBalanceRequest(PINRequest):
+    pass
+class TransferPossibleRequest(BaseModel):
+    receipient: str
+    msisdn: str
+    telco:str
+    sessionId:str
+class TransferNameEnquiryRequest(BaseModel):
+    bankcode: Optional[str]= None
+    receipient: str
+    msisdn: str
+    telco:str
+    sessionId:str
+class TransferRequest(PINRequest):
+    receipientName: Optional[str]= None
+    amount: str
+    bankcode: Optional[str]= None
 class TransferInterRequest(PINRequest):
     amount: str
-    phoneNumber: str
-    accountNumber: str
-    receipientAccountNumber: str
-    receipientBankCode: str
-class BillPaymentRequest(PINRequest):
-    accountNumber: str
-    amount: str
-    customerNumber: str
-    billerId: str
-    packageCode: Optional[str] = None
-
+    bankCode: str
 class BillNameEnquiryRequest(BaseModel):
-    accountNumber:str
-    customerNumber:str
+    receipient:str
     billerId:str
     amount: str
     packageId:Optional[str]= None
+    telco:str
+    sessionId:str
+    msisdn: str
 class BillPaymentRequest(PINRequest):
-    customerNumber:str
-    accountNumber:str
     billerId:str
     packageId:Optional[str]= None
     amount: str
