@@ -7,12 +7,13 @@ from fastapi import (
     Request,
     BackgroundTasks,
 )
+from models.model import AccountModel
 from sqlalchemy.orm import Session
 from typing import Annotated
 from utils import util
 from utils.constant import *
 from datetime import date
-from utils.dependencies import getSystemSetting, authenticate_user
+from utils.dependencies import getSystemSetting, authenticate_user,validateTransactionPIN
 from utils.database import get_db
 from schemas.admin import Admin
 from schemas.customer import Customer
@@ -36,6 +37,7 @@ async def get_transactions(
     
     user: Annotated[Admin, Depends(authenticate_user)],
     setting: Annotated[Setting, Depends(getSystemSetting)],
+    account:Annotated[AccountModel, Depends(validateTransactionPIN)],
     db: Annotated[Session, Depends(get_db)],
     startDate: str = Query(str(date.today())),
     endDate: str = Query(str(date.today())),
@@ -56,7 +58,7 @@ async def get_transactions(
     except Exception as ex:
         logger.error(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
-        return Transactions(
+        return BaseResponse(
             statusCode=str(status.HTTP_400_BAD_REQUEST),
             statusDescription=SYSTEMBUSY,
         )
