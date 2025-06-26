@@ -131,7 +131,7 @@ async def open_account(db:Session,payload:OpenAccountRequest,response:Response,s
                                     firstname = retrieveBvn['firstName'],
                                     lastname = retrieveBvn['lastName'],
                                     middlename = retrieveBvn['middleName'],
-                                    customerNumber = createAccount["details"]["CustomerID"],
+                                    customerNumber = createAccount["data"]["CustomerID"],
                                     dob = retrieveBvn['lgaOfOrigin'],
                                     email = retrieveBvn['email'],
                                     phonenumber = util.formatPhoneFull(payload.msisdn),
@@ -145,8 +145,8 @@ async def open_account(db:Session,payload:OpenAccountRequest,response:Response,s
                                     indemnitySigned = False,
                                     accounts = [
                                         AccountModel(
-                                                accountNumber = createAccount["details"]["AccountNumber"],
-                                                customerNumber = createAccount["details"]["CustomerID"],
+                                                accountNumber = createAccount["data"]["AccountNumber"],
+                                                customerNumber = createAccount["data"]["CustomerID"],
                                                 active = True,
                                                 isDefaultPayment = True,
                                                 blacklisted = False,
