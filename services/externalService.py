@@ -72,21 +72,29 @@ async def openAccount(setting: Setting, params: dict = None):
             f"started get customer records for account Number {params} with BankOne"
         )
         
-        bankOneResponse = util.http(
-                        url=f"{setting.bankone_url}BankOneWebAPI/api/Account/CreateAccountQuick/2?authToken={setting.bankone_token}",
-                        params=params)
-        if bankOneResponse.status_code == 200:
-            res = bankOneResponse.json()
-            if res["IsSuccessful"] is True:
-                response["statuscode"] = str(bankOneResponse.status_code)
-                response["message"] = SUCCESS
-                response["data"] = res["Message"]
-            else:
-                response["statuscode"] = "400"
-                response["message"] = res["Message"]["CreationMessage"] if "CreationMessage" in res["Message"] else res["Message"]
+        openAccountExist = await redisUtil.get_cache(key=f"openAccount:{params['BVN']}")
+        if openAccountExist:
+            openAccountExist = json.loads(openAccountExist)
+            response["statuscode"] = "200"
+            response["message"] = SUCCESS
+            response["data"] = openAccountExist
         else:
-            response["statuscode"] = str(bankOneResponse.status_code)
-            response["message"] = SYSTEMBUSY
+            bankOneResponse = util.http(
+                            url=f"{setting.bankone_url}BankOneWebAPI/api/Account/CreateAccountQuick/2?authToken={setting.bankone_token}",
+                            params=params)
+            if bankOneResponse.status_code == 200:
+                res = bankOneResponse.json()
+                if res["IsSuccessful"] is True:
+                    savedBvn = await redisUtil.set_cache(key=f"openAccount:{params['BVN']}", value=json.dumps(res["Message"]), ttl=timedelta(days=1))
+                    response["statuscode"] = str(bankOneResponse.status_code)
+                    response["message"] = SUCCESS
+                    response["data"] = res["Message"]
+                else:
+                    response["statuscode"] = "400"
+                    response["message"] = res["Message"]["CreationMessage"] if "CreationMessage" in res["Message"] else res["Message"]
+            else:
+                response["statuscode"] = str(bankOneResponse.status_code)
+                response["message"] = SYSTEMBUSY
     except Exception as ex:
         logger.info(ex)
         response["statuscode"] = "500"

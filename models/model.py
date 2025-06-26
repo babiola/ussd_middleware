@@ -47,6 +47,7 @@ class CustomerModel(Base):
     __tablename__ = "customers"
     id = Column(Integer, primary_key=True, index=True)
     firstname = Column(String(25))
+    middlename = Column(String(25))
     lastname = Column(String(25))
     customerNumber = Column(String(100))
     dob = Column(String(25),nullable=True,default=f"{func.now()}")
