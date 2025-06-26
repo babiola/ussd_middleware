@@ -157,7 +157,7 @@ async def open_account(db:Session,payload:OpenAccountRequest,response:Response,s
                                     updated_at = datetime.now())
                             savecustomer = customerQuery.create_account(db=db,user=customer)
                             if savecustomer:
-                                return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=createAccount['message'],data=createAccount["details"]["AccountNumber"])
+                                return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=createAccount['message'],data=createAccount["data"]["AccountNumber"])
                             else:
                                 response.status_code = status.HTTP_400_BAD_REQUEST
                                 return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=createAccount['message'])
