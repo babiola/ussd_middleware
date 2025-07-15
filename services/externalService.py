@@ -292,74 +292,10 @@ async def accountTransferInterByBankOne(setting: Setting,params: dict = None):
             response["message"] = SYSTEMBUSY
     except Exception as ex:
         logger.info(ex)
-        response["statuscode"] = "500"
-        response["message"] = SYSTEMBUSY
+        response["statuscode"] = "201"
+        response["message"] = PENDING
     return response
 
-
-
-def debitTransaction(
-    db: Session,
-    user: Customer,
-    wallet: Account,
-    transaction: TransactionModel,
-):
-    if user.commission_enabled:
-        # get the commission configured per user per service
-        commission = paymentQuery.get_one_commission(
-            db=db, userId=user.id, billerId=transaction.customerBillerId
-        )
-        if commission:
-            commissionAmount = int(transaction.amount) * (
-                int(commission.totalcommission) / 100
-            )
-            paidAmount = int(transaction.amount) - int(commissionAmount)
-            debit = debitAccount(db=db, wallet=wallet, amount=paidAmount)
-            if debit and debit == util.DebitStatusEnum.APPROVE:
-                # credit commission
-                transaction = TransactionModel(
-                    user_id=wallet.user_id,
-                    transactionId=f"COM-{util.generateUniqueId()}",
-                    amount=commissionAmount,
-                    product=transaction.product,
-                    isDebit=False,
-                    customerBillerId=transaction.customerBillerId,
-                    remarks=f"commission on {transaction.transactionType}",
-                    reference=transaction.transactionId,
-                    transactionType="COMMISSION",
-                    transactionStatus=SUCCESS,
-                    owner_id=user.id,
-                    updated_at=datetime.now(),
-                    created_at=datetime.now(),
-                )
-                createdTransaction = paymentQuery.create_transaction(
-                    db=db, transaction=transaction
-                )
-                if createdTransaction:
-                    return util.DebitStatusEnum.APPROVE
-                else:
-                    return util.DebitStatusEnum.PROCESSING
-            else:
-                return debit
-        else:
-            return debitAccount(db=db, wallet=wallet, amount=int(transaction.amount))
-    else:
-        return debitAccount(db=db, wallet=wallet, amount=int(transaction.amount))
-def debitAccount(
-    db: Session,
-    wallet: Account,
-    amount: int,
-):
-    if int(wallet.balance) > amount:
-        wallet.balance_before = wallet.balance
-        wallet.balance = int(wallet.balance) - amount
-        updatedWallet = paymentQuery.update_wallet(db=db, wallet=wallet)
-        if updatedWallet:
-            return util.DebitStatusEnum.APPROVE
-        else:
-            return util.DebitStatusEnum.ERROR
-    else:
-        return util.DebitStatusEnum.INSUFICIENT
 def creditAccountByBankOne(
         user:Customer,
         accountToBeCredited:str,
@@ -413,49 +349,7 @@ def creditAccountByBankOne(
         response["statuscode"] = "500"
         response["message"] = SYSTEMBUSY
     return response
-def accountTransferIntraPaymentByBankOne(setting: Setting,params: dict = None):
-    response = {}
-    try:
-        logger.info(
-            f"started intra payment transfer for bank {BankCode} with account {AccountNumber} with BankOne"
-        )
-        params = {
-            "FromAccountNumber": senderAccount,
-            "Amount":amount,
-            "ToAccountNumber":AccountNumber,
-            "RetrievalReference": transactionId,
-            "Narration": remark,
-            "AuthenticationKey": setting.bankone_token
-            }
-        bankOneResponse = util.http(
-                        url=f"{setting.bankone_url}thirdpartyapiservice/apiservice/CoreTransactions/LocalFundsTransfer",
-                        params=params)
-        resp = bankOneResponse.json()
-        if resp:
-            if bankOneResponse.status_code == 200 and resp["IsSuccessful"] is True:
-                 if resp["Status"] == "Successful" or resp["ResponseCode"] == str(bankOneResponse.status_code):
-                      response["statuscode"] = resp["ResponseCode"]
-                      response["message"] = SUCCESS
-                      response["reference"] = resp["Reference"]
-                 elif resp["ResponseCode"] in ["91","06"]:
-                      response["statuscode"] = "500"
-                      response["message"] = PENDING
-                      response["reference"] = resp["Reference"]
-                 else:
-                      response["statuscode"] = "BT001"
-                      response["message"] = FAILED
-                      response["reference"] = resp["Reference"]  
-            else:
-                response["statuscode"] = "BT00F"
-                response["message"] = resp["ResponseMessage"]
-        else:
-            response["statuscode"] = "BT00F"
-            response["message"] = SYSTEMBUSY
-    except Exception as ex:
-        logger.info(ex)
-        response["statuscode"] = "500"
-        response["message"] = SYSTEMBUSY
-    return response
+
 def accountTransferRequeryByBankOne(amount:str,transactionId:str,transDate:str,transType:str,setting: Setting):
     response = {}
     try:
@@ -531,29 +425,6 @@ def accountTransferReversalByBankOne(amount:str,transactionId:str,transDate:str,
             else:
                 response["statuscode"] = "BT00F"
                 response["message"] = resp["ResponseMessage"]
-        else:
-            response["statuscode"] = "BT00F"
-            response["message"] = SYSTEMBUSY
-    except Exception as ex:
-        logger.info(ex)
-        response["statuscode"] = "500"
-        response["message"] = SYSTEMBUSY
-    return response
-def accountBalanceEnquiryByBankOne(accountNumber:str,setting: Setting):
-    response = {}
-    try:
-        logger.info(
-            f"started balance enquiry for {accountNumber} with BankOne"
-        )
-        bankOneResponse = util.http(
-                        url=f"{setting.bankone_url}BankOneWebAPI/api/Account/GetAccountByAccountNumber/2?authToken={setting.bankone_token}&accountNumber={accountNumber}&computewithdrawableBalance=true")
-        if bankOneResponse.status_code == 200:
-            resp = bankOneResponse.json()
-            response["statuscode"] = str(bankOneResponse.status_code)
-            response["message"] = SUCCESS
-            response["wbalance"] = util.getKoboValue(amount=resp["WithdrawableBalance"])
-            response["abalance"] = util.getKoboValue(amount=resp["AvailableBalance"])
-            response["lbalance"] = util.getKoboValue(amount=resp["LedgerBalance"])
         else:
             response["statuscode"] = "BT00F"
             response["message"] = SYSTEMBUSY
