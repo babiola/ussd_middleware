@@ -159,6 +159,7 @@ class ProductModel(Base):
 class ProductTypeModel(Base):
     __tablename__ = "product_types"
     id = Column(Integer, primary_key=True, index=True)
+    service_provider_id = Column(Integer, ForeignKey("service_providers.id"),nullable=True)
     billerName = Column(String(50))
     billerId = Column(String(15))
     billerType = Column(String(25))
@@ -177,6 +178,7 @@ class ProductTypeModel(Base):
     currencyCode = Column(String(25), default="566")
     currencySymbol = Column(String(25), default="NGN")
     product_id = Column(Integer, ForeignKey("products.id"))
+    service_provider = relationship("ServiceProviderModel", backref="product_type")
     packages = relationship("PackageModel", backref="product_type")
     updated_at = Column(DateTime, default=func.now())
     created_at = Column(DateTime, default=func.now())
@@ -195,3 +197,15 @@ class PackageModel(Base):
     hasValidity = Column(Boolean, default=False)
     updated_at = Column(DateTime, default=func.now())
     created_at = Column(DateTime, default=func.now())
+class ServiceProviderModel(Base):
+    __tablename__ = "service_providers"
+    id = Column(Integer, primary_key=True, index=True)
+    provider_name = Column(String(100))
+    provider_code = Column(String(100),default="001")
+    auth_method = Column(String(100))
+    active = Column(Boolean, default=False)
+    service_secret = Column(String(255))
+    service_key = Column(String(255))
+    login_id = Column(String(25))
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now())

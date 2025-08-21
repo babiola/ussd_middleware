@@ -125,8 +125,10 @@ async def getBillerPackages(db:Session,response:Response,setting:Setting,billerI
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
         return PackagesResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)
-def routeBillToProvider(payload:BillPaymentRequest,biller:ProductTypeModel,account:AccountModel,db:Session,setting:Setting):
+async def routeBillToProvider(payload:BillPaymentRequest,biller:ProductTypeModel,account:AccountModel,db:Session,setting:Setting):
     try:
+        if biller.service_provider:
+            purchase = await externalService.purchaseService(setting=setting,params=params)
         return PackagesResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
     except Exception as ex:
         logger.info(ex)

@@ -144,7 +144,7 @@ async def post_customer_open_new_account(
                 db=db,
                 payload=payload,
                 response=response,
-                setting=setting,accountType=AccountLevelEnum.TIER3 
+                setting=setting,accountType=AccountLevelEnum.TIER3,background_task=background_task
             )
         else:
             response.status_code = status.HTTP_400_BAD_REQUEST
