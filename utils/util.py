@@ -51,7 +51,7 @@ def create_response(url,method=None,body=None,headers=None,status_code=500, mess
     response.headers = headers
     response.request = request
     return response
-def http(url, params={}, headers={"content-type": "application/json"},contentType="json",method="GET",files=None,timeout=10):
+def http(url, params={}, headers={"content-type": "application/json"},contentType="json",method="GET",files=None,timeout=10,data=None):
     print("INFO|%s|%s|%s" % (str(http.__name__), str(url), str(params)))
     startTime = datetime.now()
     try:
@@ -63,7 +63,7 @@ def http(url, params={}, headers={"content-type": "application/json"},contentTyp
                 resp = requests.post(url, data = json.dumps(params), headers=headers, timeout=timeout)
         else:
             if method=="POST":
-                resp = requests.post(url,headers=headers,timeout=timeout)
+                resp = requests.post(url,headers=headers,data=data,timeout=timeout)
             else:
                 resp = requests.get(url, headers=headers, timeout=timeout)
     except requests.Timeout:

@@ -295,6 +295,34 @@ async def accountTransferInterByBankOne(setting: Setting,params: dict = None):
         response["statuscode"] = "201"
         response["message"] = PENDING
     return response
+async def sendSms(setting: Setting, message: str):
+    response = {}
+    try:
+        logger.info(
+            f"started send sms to cutomer at {datetime.now()}"
+        )
+        
+        bankOneResponse = util.http(
+                            url=f"{setting.bankone_url}BankOneWebAPI/api/Messaging/SaveBulkSms/2?authToken={setting.bankone_token}",
+                            data=message,method="POST")
+        if bankOneResponse.status_code == 200:
+            res = bankOneResponse.json()
+            if res["IsSuccessful"] is True:
+                response["statuscode"] = str(bankOneResponse.status_code)
+                response["message"] = SUCCESS
+                response["data"] = res["Message"]
+            else:
+                response["statuscode"] = "400"
+                response["message"] = res["Message"]["CreationMessage"] if "CreationMessage" in res["Message"] else res["Message"]
+        else:
+            response["statuscode"] = str(bankOneResponse.status_code)
+            response["message"] = SYSTEMBUSY
+    except Exception as ex:
+        logger.info(ex)
+        response["statuscode"] = "500"
+        response["message"] = SYSTEMBUSY
+    return response
+
 
 def creditAccountByBankOne(
         user:Customer,
@@ -501,6 +529,33 @@ def updateCustomerViaCustomerIdFromBankOne(setting: Setting,custId:str,firstName
             response["data"] = resp
         else:
             response["statuscode"] = "BT00F"
+            response["message"] = SYSTEMBUSY
+    except Exception as ex:
+        logger.info(ex)
+        response["statuscode"] = "500"
+        response["message"] = SYSTEMBUSY
+    return response
+async def purchaseService(setting: Setting, message: str):
+    response = {}
+    try:
+        logger.info(
+            f"started send sms to cutomer at {datetime.now()}"
+        )
+        
+        bankOneResponse = util.http(
+                            url=f"{setting.bankone_url}BankOneWebAPI/api/Messaging/SaveBulkSms/2?authToken={setting.bankone_token}",
+                            data=message,method="POST")
+        if bankOneResponse.status_code == 200:
+            res = bankOneResponse.json()
+            if res["IsSuccessful"] is True:
+                response["statuscode"] = str(bankOneResponse.status_code)
+                response["message"] = SUCCESS
+                response["data"] = res["Message"]
+            else:
+                response["statuscode"] = "400"
+                response["message"] = res["Message"]["CreationMessage"] if "CreationMessage" in res["Message"] else res["Message"]
+        else:
+            response["statuscode"] = str(bankOneResponse.status_code)
             response["message"] = SYSTEMBUSY
     except Exception as ex:
         logger.info(ex)
