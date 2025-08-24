@@ -370,7 +370,9 @@ def get_password_hash(password):
     hashed_password = bcrypt.hashpw(password=pwd_bytes, salt=salt)
     return hashed_password
 
-
+def getChecksum(payload:str)->str:
+    checksum = base64.urlsafe_b64encode(bcrypt.hashpw(payload.encode("utf8"), bcrypt.gensalt()))
+    return checksum.decode("utf8")
 # Check if the provided password matches the stored password (hashed)
 def verify_password(plain_password, hashed_password):
     logger.info(plain_password)

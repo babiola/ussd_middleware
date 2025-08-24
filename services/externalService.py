@@ -535,16 +535,20 @@ def updateCustomerViaCustomerIdFromBankOne(setting: Setting,custId:str,firstName
         response["statuscode"] = "500"
         response["message"] = SYSTEMBUSY
     return response
-async def purchaseService(setting: Setting, message: str):
+async def purchaseService(setting: Setting,biller:ProductTypeModel, serviceprovider:ServiceProviderModel,params: dict = None):
     response = {}
     try:
         logger.info(
-            f"started send sms to cutomer at {datetime.now()}"
+            f"started sending request to {serviceprovider.provider_name} at {datetime.now()}"
         )
-        
-        bankOneResponse = util.http(
-                            url=f"{setting.bankone_url}BankOneWebAPI/api/Messaging/SaveBulkSms/2?authToken={setting.bankone_token}",
-                            data=message,method="POST")
+        if serviceprovider.provider_code == '001':
+            if str(biller.billerType).lower() == 'airtime':
+                params['checksum'] = util.getChecksum(payload=f"{params['loginId']}|{params['requestId']}|{params['serviceId']}|{params['amount']}|{serviceprovider.service_secret}||{params['recipient']}")
+            elif biller.billerType == 'data':
+                params['checksum'] = util.getChecksum(payload=f"{params['loginId']}|{params['requestId']}|{params['serviceId']}|{params['amount']}|{serviceprovider.service_secret}||{params['recipient']}")
+            elif biller.billerType == 'cable':
+                params['checksum'] = util.getChecksum(payload=f"{params['loginId']}|{params['requestId']}|{params['serviceId']}|{params['amount']}|{serviceprovider.service_secret}||{params['recipient']}")
+        bankOneResponse = util.http(url=serviceprovider.provider_url,params=params,method="POST")
         if bankOneResponse.status_code == 200:
             res = bankOneResponse.json()
             if res["IsSuccessful"] is True:
