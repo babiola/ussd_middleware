@@ -542,24 +542,26 @@ async def purchaseService(setting: Setting,biller:ProductTypeModel, serviceprovi
             f"started sending request to {serviceprovider.provider_name} at {datetime.now()}"
         )
         if serviceprovider.provider_code == '001':
+            params['key'] = serviceprovider.service_key
+            params['loginId'] =  serviceprovider.login_id
             if str(biller.billerType).lower() == 'airtime':
                 params['checksum'] = util.getChecksum(payload=f"{params['loginId']}|{params['requestId']}|{params['serviceId']}|{params['amount']}|{serviceprovider.service_secret}||{params['recipient']}")
             elif biller.billerType == 'data':
                 params['checksum'] = util.getChecksum(payload=f"{params['loginId']}|{params['requestId']}|{params['serviceId']}|{params['amount']}|{serviceprovider.service_secret}||{params['recipient']}")
             elif biller.billerType == 'cable':
                 params['checksum'] = util.getChecksum(payload=f"{params['loginId']}|{params['requestId']}|{params['serviceId']}|{params['amount']}|{serviceprovider.service_secret}||{params['recipient']}")
-        bankOneResponse = util.http(url=serviceprovider.provider_url,params=params,method="POST")
-        if bankOneResponse.status_code == 200:
-            res = bankOneResponse.json()
-            if res["IsSuccessful"] is True:
-                response["statuscode"] = str(bankOneResponse.status_code)
+        res = util.http(url=serviceprovider.provider_url,params=params,method="POST")
+        jsonresponse = res.json()
+        if res.status_code == 200:
+            if jsonresponse['statusCode'] in ["00","C001"]:
+                response["statuscode"] = "200"
                 response["message"] = SUCCESS
-                response["data"] = res["Message"]
+                response["data"] = jsonresponse["data"]
             else:
                 response["statuscode"] = "400"
-                response["message"] = res["Message"]["CreationMessage"] if "CreationMessage" in res["Message"] else res["Message"]
+                response["message"] = "failed"
         else:
-            response["statuscode"] = str(bankOneResponse.status_code)
+            response["statuscode"] = "400"
             response["message"] = SYSTEMBUSY
     except Exception as ex:
         logger.info(ex)

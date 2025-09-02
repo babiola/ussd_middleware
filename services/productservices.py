@@ -189,8 +189,6 @@ async def routeBillToProvider(payload:BillPaymentRequest,biller:ProductTypeModel
             params['channelCode'] = '01'
             params['operator'] = biller.billerName
             params['requestId'] = transaction.reference
-            params['key'] = biller.service_provider.service_key
-            params['loginId'] =  biller.service_provider.loginId
             params['date'] = datetime.now()
             params['accountNo'] = account.accountNumber
             purchase = await externalService.purchaseService(setting=setting,serviceprovider=biller.service_provider,params=params)
@@ -199,7 +197,11 @@ async def routeBillToProvider(payload:BillPaymentRequest,biller:ProductTypeModel
                 transaction.statusMessage = purchase['message']
                 transaction.providerReference = purchase['data']['confirmCode']
                 transaction.updated_at = datetime.now()
-                updatedTransaction = paymentQuery.create(db=db,model=transaction)
+            else:
+                transaction.statusCode = TransactionStatusEnum.FAILED.value
+                transaction.statusMessage = purchase['message']
+                transaction.updated_at = datetime.now()
+            updatedTransaction = paymentQuery.create(db=db,model=transaction)
         return PackagesResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
     except Exception as ex:
         logger.info(ex)

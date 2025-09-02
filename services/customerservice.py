@@ -94,7 +94,7 @@ async def open_account(db:Session,payload:OpenAccountRequest,response:Response,s
                             "Email":'info@rayyan.com' if retrieveBvn.get('email','info@rayyan.com') == '' else retrieveBvn.get('email','info@rayyan.com'),
                             "NotificationPreference": 0,
                             "TransactionPermission": "0",
-                            "AccountTier": "3"} if accountType == AccountLevelEnum.TIER3 else {
+                            "AccountTier": "1"} if accountType == AccountLevelEnum.TIER3 else {
                             "TransactionTrackingRef":util.generateUniqueId(),
                             "AccountOpeningTrackingRef": util.formatPhoneShort(retrieveBvn['phoneNumber1']),
                             "ProductCode": "103",
@@ -108,7 +108,7 @@ async def open_account(db:Session,payload:OpenAccountRequest,response:Response,s
                             "PlaceOfBirth":retrieveBvn['lgaOfOrigin'],
                             "DateOfBirth": retrieveBvn['dateOfBirth'],
                             "Address":retrieveBvn['residentialAddress'],
-                            "AccountTier": "3",
+                            "AccountTier": "1",
                             "CustomerImage":retrieveBvn['base64Image'],
                             "AccountOfficerCode": "100",
                             "HasSufficientInfoOnAccountInfo": True,
