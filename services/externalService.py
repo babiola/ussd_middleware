@@ -275,9 +275,9 @@ async def accountTransferInterByBankOne(setting: Setting,params: dict = None):
         bankOneResponse = util.http(url=f"{setting.bankone_url}thirdpartyapiservice/apiservice/Transfer/InterBankTransfer",params=params)
         if bankOneResponse.status_code == 200:
             resp = bankOneResponse.json()
-            if resp["IsSuccessful"] is True and resp["ResponseCode"] =="00":
+            if resp["IsSuccessFul"] is True and resp["ResponseCode"] =="00":
                  response["statuscode"] = str(bankOneResponse.status_code)
-                 response["message"] = resp["ResponseMessage"]
+                 response["message"] = resp["ResponseStatus"]
                  response["data"] = resp["Reference"]
                  response["mRef"] = resp["UniqueIdentifier"]
             elif resp["ResponseCode"] in ["91","06"]:

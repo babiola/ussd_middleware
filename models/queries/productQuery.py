@@ -15,7 +15,9 @@ def getBillers(db: Session):
     return db.query(ProductTypeModel).all()
 def getBillersByproductId(db: Session, productId: int):
     return db.query(ProductTypeModel).filter(ProductTypeModel.product_id == productId).all()
-def getBillerByBillerId(db: Session, billerId: str):
+def getBillerByBillerId(db: Session, billerId: str,billtype:str=None):
+    if billtype:
+        return db.query(ProductTypeModel).filter(ProductTypeModel.billerId == billerId).filter(ProductTypeModel.billerType == billtype).first()
     return db.query(ProductTypeModel).filter(ProductTypeModel.billerId == billerId).first()
 async def getPackagesBillerId(db: Session, billerId: str):
     return db.query(PackageModel).filter(PackageModel.billerId == billerId).all()

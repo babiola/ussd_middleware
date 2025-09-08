@@ -91,7 +91,7 @@ async def bankNameEnquiry(request:Request,response: Response, setting: Setting, 
 async def bankTransferIntra(request:Request,account:AccountModel,response: Response, setting: Setting, db: Session, payload: TransferRequest,background_task: BackgroundTasks):
     try:
         logger.info(f"started intra bank transfer to account {payload.receipient}")
-        params = {"FromAccountNumber": account.accountNumber,"Amount":payload.amount,"ToAccountNumber":payload.receipient,"RetrievalReference": util.generateId(),"Narration": f"USSD-TRF/{util.mask_email(payload.receipient)}",}
+        params = {"FromAccountNumber": account.accountNumber,"Amount":f"{int(payload.amount)*100}","ToAccountNumber":payload.receipient,"RetrievalReference": util.generateId(),"Narration": f"USSD-TRF/{util.mask_email(payload.receipient)}",}
         debitAccount =await externalService.accountTransferIntraByBankOne(setting=setting,params=params)
         if debitAccount['statuscode'] == str(status.HTTP_200_OK):
             #background_task.add_task(routeBillToProvider,payload=payload,biller=biller,account=account,db=db,setting=setting)
@@ -110,7 +110,7 @@ async def bankTransferInter(request:Request,account:AccountModel,response: Respo
     try:
         logger.info(f"started payment transfer for bank {payload.receipient} with account {payload.msisdn}")
         params = {
-             "Amount":payload.amount,
+             "Amount":f"{int(payload.amount)*100}",
              "AppzoneAccount":"",
             "Payer":f"{account.customer.lastname} {account.customer.firstname}",
             "PayerAccountNumber" :account.accountNumber,
