@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 async def buyAirtime(db:Session,request:Request,payload:BillPaymentRequest,response:Response,setting:Setting,account:AccountModel,background_task: BackgroundTasks):
     try:
         logger.info(f"Started buy {payload.billerId} of {payload.amount} for {payload.receipient} from account {payload.accountNumber}")
-        biller = productQuery.getBillerByBillerId(db=db,billerId=payload.billerId)
+        biller = productQuery.getBillerByBillerId(db=db,billerId=payload.billerId,billtype="airtime")
         if biller:
             transaction = TransactionModel(
                         customer_id = account.customer_id,
@@ -62,7 +62,7 @@ async def buyAirtime(db:Session,request:Request,payload:BillPaymentRequest,respo
 async def buyDataPlan(db:Session,request:Request,payload:BillPaymentRequest,response:Response,setting:Setting,account:AccountModel,background_task: BackgroundTasks):
     try:
         logger.info(f"Started buy {payload.billerId} of {payload.amount} for {payload.receipient} from account {payload.accountNumber}")
-        biller = productQuery.getBillerByBillerId(db=db,billerId=payload.billerId)
+        biller = productQuery.getBillerByBillerId(db=db,billerId=payload.billerId,billtype="data")
         if biller:
             transaction = TransactionModel(
                         customer_id = account.customer_id,
@@ -183,7 +183,7 @@ async def routeBillToProvider(payload:BillPaymentRequest,biller:ProductTypeModel
     try:
         params = {}
         if biller.service_provider:
-            params['amount'] = payload.amount
+            params['amount'] = int(payload.amount)*100
             params['recipient'] = payload.receipient
             params['serviceId'] = biller.billerId
             params['channelCode'] = '01'
