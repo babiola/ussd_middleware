@@ -197,7 +197,7 @@ async def routeBillToProvider(payload:BillPaymentRequest,biller:ProductTypeModel
             params['requestId'] = transaction.reference
             params['date'] = datetime.now()
             params['accountNo'] = account.accountNumber
-            purchase = await externalService.purchaseService(setting=setting,serviceprovider=provider,params=params)
+            purchase = await externalService.purchaseService(biller=biller,setting=setting,serviceprovider=provider,params=params)
             if purchase['statuscode'] == str(status.HTTP_200_OK):
                 transaction.statusCode = TransactionStatusEnum.SUCCESS.value
                 transaction.statusMessage = purchase['message']
