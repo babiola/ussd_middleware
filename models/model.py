@@ -209,5 +209,6 @@ class ServiceProviderModel(Base):
     service_secret = Column(String(255))
     service_key = Column(String(255))
     login_id = Column(String(25))
+    product_type = relationship("ProductTypeModel",uselist=False, back_populates="service_provider")
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now())
