@@ -195,7 +195,7 @@ async def routeBillToProvider(payload:BillPaymentRequest,biller:ProductTypeModel
             params['channelCode'] = '01'
             params['operator'] = biller.billerName
             params['requestId'] = transaction.reference
-            params['date'] = datetime.now()
+            params['date'] = datetime.now().isoformat()
             params['accountNo'] = account.accountNumber
             purchase = await externalService.purchaseService(biller=biller,setting=setting,serviceprovider=provider,params=params)
             if purchase['statuscode'] == str(status.HTTP_200_OK):
