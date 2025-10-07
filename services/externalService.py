@@ -550,7 +550,7 @@ async def purchaseService(setting: Setting,biller:ProductTypeModel, serviceprovi
                 params['checksum'] = util.getChecksum(payload=f"{params['loginId']}|{params['requestId']}|{params['serviceId']}|{params['amount']}|{serviceprovider.service_secret}||{params['recipient']}")
             elif biller.billerType == 'cable':
                 params['checksum'] = util.getChecksum(payload=f"{params['loginId']}|{params['requestId']}|{params['serviceId']}|{params['amount']}|{serviceprovider.service_secret}||{params['recipient']}")
-        res = util.http(url=serviceprovider.provider_url,params=params,method="POST")
+        res = util.http(url=serviceprovider.provider_url,params=params,method=serviceprovider.auth_method)
         jsonresponse = res.json()
         if res.status_code == 200:
             if jsonresponse['statusCode'] in ["00","C001"]:

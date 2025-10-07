@@ -24,9 +24,10 @@ from fastapi import (
 logger = logging.getLogger(__name__)
 async def buyAirtime(db:Session,request:Request,payload:BillPaymentRequest,response:Response,setting:Setting,account:AccountModel,background_task: BackgroundTasks):
     try:
-        logger.info(f"Started buy {payload.billerId} of {payload.amount} for {payload.receipient} from account {payload.accountNumber}")
+        logger.info(f"Started airtime purchase of N{payload.amount} for {payload.receipient} from account {payload.accountNumber} with biller {payload.billerId}  at {datetime.now()}")
         biller = productQuery.getBillerByBillerId(db=db,billerId=payload.billerId,billtype="airtime")
         if biller:
+            logger.info(f"Biller {biller.billerName} is available for {payload.receipient}  at {datetime.now()}")
             transaction = TransactionModel(
                         customer_id = account.customer_id,
                         account_id = account.id,
@@ -38,9 +39,11 @@ async def buyAirtime(db:Session,request:Request,payload:BillPaymentRequest,respo
                         )
             logTransaction = paymentQuery.create(db=db,model=transaction)
             if logTransaction:
+                logger.info(f"Started debit process for  {payload.receipient} with account {payload.accountNumber}  at {datetime.now()}")
                 params = {"GLCode":setting.bankone_cust_gl,"RetrievalReference": util.generateId(),"AccountNumber": account.accountNumber,"Amount": payload.amount,"Narration":f"{biller.billerName}/{payload.receipient}/N{payload.amount}"}
                 debitAccount =await externalService.debitAccountByBankOne(setting=setting,params=params)
                 if debitAccount['statuscode'] == str(status.HTTP_200_OK):
+                    logger.info(f"Debit successful for  {payload.receipient} with account {payload.accountNumber} at {datetime.now()}")
                     background_task.add_task(routeBillToProvider,payload=payload,biller=biller,account=account,transaction=logTransaction,db=db,setting=setting)
                     return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
                 else:
@@ -181,8 +184,10 @@ async def getBillerPackages(db:Session,response:Response,setting:Setting,billerI
         return PackagesResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)
 async def routeBillToProvider(payload:BillPaymentRequest,biller:ProductTypeModel,account:AccountModel,transaction:TransactionModel,db:Session,setting:Setting):
     try:
+        logger.info(f"Started vending process for  {payload.receipient} with account {payload.accountNumber} with biller {biller.billerName} at {datetime.now()}")
         params = {}
         if biller.service_provider:
+            logger.info(f"Provider {biller.service_provider.provider_name} has been configured for  {payload.receipient} with account {payload.accountNumber}  at {datetime.now()}")
             params['amount'] = int(payload.amount)*100
             params['recipient'] = payload.receipient
             params['serviceId'] = biller.billerId

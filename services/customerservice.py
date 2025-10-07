@@ -157,7 +157,7 @@ async def open_account(db:Session,payload:OpenAccountRequest,response:Response,s
                                     updated_at = datetime.now())
                             savecustomer = customerQuery.create_account(db=db,user=customer)
                             if savecustomer:
-                                message=f"Your Rayyan MFB Account Number is {createAccount["data"]["AccountNumber"]}"
+                                message=f"Your Rayyan MFB Account Number is {createAccount['data']['AccountNumber']}"
                                 background_task.add_task(externalService.sendSms,setting=setting,message=message)
                                 return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=createAccount['message'],data=createAccount["data"]["AccountNumber"])
                             else:

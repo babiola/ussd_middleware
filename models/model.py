@@ -179,8 +179,8 @@ class ProductTypeModel(Base):
     currencyCode = Column(String(25), default="566")
     currencySymbol = Column(String(25), default="NGN")
     product_id = Column(Integer, ForeignKey("products.id"))
-    service_provider = relationship("ServiceProviderModel", backref="product_type")
-    packages = relationship("PackageModel", backref="product_type")
+    service_provider = relationship("ServiceProviderModel",uselist=False, back_populates="product_type")
+    packages = relationship("PackageModel", back_populates="product_type")
     updated_at = Column(DateTime, default=func.now())
     created_at = Column(DateTime, default=func.now())
 class PackageModel(Base):
