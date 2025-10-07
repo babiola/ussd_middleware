@@ -196,6 +196,7 @@ class PackageModel(Base):
     currencySymbol = Column(String(25), default="NGN")
     status = Column(Boolean, default=False)
     hasValidity = Column(Boolean, default=False)
+    product_type = relationship("ProductTypeModel", back_populates="packages")
     updated_at = Column(DateTime, default=func.now())
     created_at = Column(DateTime, default=func.now())
 class ServiceProviderModel(Base):
