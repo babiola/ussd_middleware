@@ -556,7 +556,7 @@ async def purchaseService(setting: Setting,biller:ProductTypeModel, serviceprovi
             if jsonresponse['statusCode'] in ["00","C001"]:
                 response["statuscode"] = "200"
                 response["message"] = SUCCESS
-                response["data"] = jsonresponse["data"]
+                response["data"] = jsonresponse
             else:
                 response["statuscode"] = "400"
                 response["message"] = "failed"
