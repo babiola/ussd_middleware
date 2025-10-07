@@ -52,12 +52,11 @@ def create_response(url,method=None,body=None,headers=None,status_code=500, mess
     response.request = request
     return response
 def http(url, params={}, headers={"content-type": "application/json"},contentType="json",method="GET",files=None,timeout=10,data=None):
-    print("INFO|%s|%s|%s" % (str(http.__name__), str(url), str(params)))
+    logger.info("INFO|%s|%s|%s" % (str(http.__name__), str(url), str(params)))
     startTime = datetime.now()
     try:
         if len(params) > 0:
             if contentType =="formData":
-                print("am here")
                 resp = requests.post(url, data = params,files=files,timeout=timeout)
             else:
                 resp = requests.post(url, data = json.dumps(params), headers=headers, timeout=timeout)
@@ -67,10 +66,10 @@ def http(url, params={}, headers={"content-type": "application/json"},contentTyp
             else:
                 resp = requests.get(url, headers=headers, timeout=timeout)
     except requests.Timeout:
-        print("Request timed out.")
+        logger.info("Request timed out.")
         resp =  create_response(url=url,method=method,body=params,headers=headers,status_code=408,message="Request timed out.")
     except requests.ConnectionError:
-        print("Connection error.")
+        logger.info("Connection error.")
         resp =  create_response(url=url,method=method,body=params,headers=headers,status_code=503,message="Connection error try again later")
     except requests.RequestException as e:
         resp = create_response(url=url,method=method,body=params,headers=headers,status_code=500,message="System busy try again later")
@@ -84,7 +83,7 @@ def http(url, params={}, headers={"content-type": "application/json"},contentTyp
         str(resp.status_code),
         str(responseTime),
     )
-    print(text)
+    logger.info(text)
     return resp
 def validateIPs(request: Request, allowed: List[str]):
     logger.info(f"this is a request coming from {request.headers} allowed IPs are {str(allowed)} client host {request.client}")
