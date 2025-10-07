@@ -186,9 +186,10 @@ async def routeBillToProvider(payload:BillPaymentRequest,biller:ProductTypeModel
     try:
         logger.info(f"Started vending process for  {payload.receipient} with account {payload.accountNumber} with biller {biller.billerName} at {datetime.now()}")
         params = {}
-        if biller.service_provider:
-            logger.info(f"Provider {biller.service_provider.provider_name} has been configured for  {payload.receipient} with account {payload.accountNumber}  at {datetime.now()}")
-            params['amount'] = int(payload.amount)*100
+        provider = paymentQuery.getProviderByProduct(db=db,providerId=biller.service_provider_id)
+        if provider:
+            logger.info(f"Provider {provider.provider_name} has been configured for  {payload.receipient} with account {payload.accountNumber}  at {datetime.now()}")
+            params['amount'] = int(payload.amount)/100
             params['recipient'] = payload.receipient
             params['serviceId'] = biller.billerId
             params['channelCode'] = '01'
@@ -196,7 +197,7 @@ async def routeBillToProvider(payload:BillPaymentRequest,biller:ProductTypeModel
             params['requestId'] = transaction.reference
             params['date'] = datetime.now()
             params['accountNo'] = account.accountNumber
-            purchase = await externalService.purchaseService(setting=setting,serviceprovider=biller.service_provider,params=params)
+            purchase = await externalService.purchaseService(setting=setting,serviceprovider=provider,params=params)
             if purchase['statuscode'] == str(status.HTTP_200_OK):
                 transaction.statusCode = TransactionStatusEnum.SUCCESS.value
                 transaction.statusMessage = purchase['message']
