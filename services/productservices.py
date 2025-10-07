@@ -189,7 +189,7 @@ async def routeBillToProvider(payload:BillPaymentRequest,biller:ProductTypeModel
         provider = paymentQuery.getProviderByProduct(db=db,providerId=biller.service_provider_id)
         if provider:
             logger.info(f"Provider {provider.provider_name} has been configured for  {payload.receipient} with account {payload.accountNumber}  at {datetime.now()}")
-            params['amount'] = int(int(payload.amount)/100)
+            params['amount'] = str(int(int(payload.amount)/100))
             params['recipient'] = payload.receipient
             params['serviceId'] = provider.billerId
             params['channelCode'] = '01'
