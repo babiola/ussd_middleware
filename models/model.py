@@ -204,6 +204,7 @@ class ServiceProviderModel(Base):
     id = Column(Integer, primary_key=True, index=True)
     provider_name = Column(String(100))
     provider_code = Column(String(100),default="001")
+    billerId = Column(String(15),default="A01E")
     auth_method = Column(String(100))
     provider_url = Column(String(200))
     active = Column(Boolean, default=False)

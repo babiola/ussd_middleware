@@ -191,7 +191,7 @@ async def routeBillToProvider(payload:BillPaymentRequest,biller:ProductTypeModel
             logger.info(f"Provider {provider.provider_name} has been configured for  {payload.receipient} with account {payload.accountNumber}  at {datetime.now()}")
             params['amount'] = int(int(payload.amount)/100)
             params['recipient'] = payload.receipient
-            params['serviceId'] = biller.billerId
+            params['serviceId'] = provider.billerId
             params['channelCode'] = '01'
             params['operator'] = biller.billerName
             params['requestId'] = transaction.reference
