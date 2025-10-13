@@ -197,6 +197,7 @@ async def routeBillToProvider(payload:BillPaymentRequest,biller:ProductTypeModel
             params['requestId'] = transaction.reference
             params['date'] = datetime.now().isoformat()
             params['accountNo'] = account.accountNumber
+            params['productId'] = payload.packageId
             purchase = await externalService.purchaseService(biller=biller,setting=setting,serviceprovider=provider,params=params)
             if purchase['statuscode'] == str(status.HTTP_200_OK):
                 logger.info(f"Vending successful for  {payload.receipient} with account {payload.accountNumber} with biller {biller.billerName} at {datetime.now()}")
