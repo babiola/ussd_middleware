@@ -141,6 +141,17 @@ async def billPayment(db:Session,request:Request,payload:BillPaymentRequest,resp
         return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)  
 async def billNameEnquiry(db:Session,payload:BillNameEnquiryRequest,response:Response,setting:Setting):
     try:
+        logger.info(f"Started bill name enquiry {payload.billerId} of {payload.amount} for {payload.receipient} at {datetime.now()}")
+        biller = productQuery.getBillerByBillerId(db=db,billerId=payload.billerId)
+        if biller:
+            provider = paymentQuery.getProviderByProduct(db=db,providerId=biller.service_provider_id)
+            if provider:
+                logger.info(f"Provider {provider.provider_name} has been configured for  {payload.receipient} at {datetime.now()}")
+                params ={"product":str(biller.billerType).upper(),"customerId": payload.receipient,"type" :str(biller.billerId).upper()}
+                if biller.billerType.lower() == "electricity":
+                    params["type"] = str(payload.packageId).upper()
+                    params["disco"] =str(biller.billerId).upper()
+                enquiry = await externalService.billEnquriesService(biller=biller,setting=setting,serviceprovider=provider,params=params)
         return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data={"customerName":"Adamu Chijioke Omolaja"})
     except Exception as ex:
         logger.info(ex)

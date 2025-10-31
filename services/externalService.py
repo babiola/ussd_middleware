@@ -322,8 +322,6 @@ async def sendSms(setting: Setting, message: str):
         response["statuscode"] = "500"
         response["message"] = SYSTEMBUSY
     return response
-
-
 def creditAccountByBankOne(
         user:Customer,
         accountToBeCredited:str,
@@ -377,7 +375,6 @@ def creditAccountByBankOne(
         response["statuscode"] = "500"
         response["message"] = SYSTEMBUSY
     return response
-
 def accountTransferRequeryByBankOne(amount:str,transactionId:str,transDate:str,transType:str,setting: Setting):
     response = {}
     try:
@@ -551,6 +548,33 @@ async def purchaseService(setting: Setting,biller:ProductTypeModel, serviceprovi
             elif biller.billerType == 'cable':
                 params['checksum'] = util.getChecksum(payload=f"{params['loginId']}|{params['requestId']}|{params['serviceId']}|{params['amount']}|{serviceprovider.service_secret}||{params['recipient']}")
         res = util.http(url=serviceprovider.provider_url,params=params,method=serviceprovider.auth_method)
+        jsonresponse = res.json()
+        if res.status_code == 200:
+            if jsonresponse['statusCode'] in ["00","C001"]:
+                response["statuscode"] = "200"
+                response["message"] = SUCCESS
+                response["data"] = jsonresponse
+            else:
+                response["statuscode"] = "400"
+                response["message"] = "failed"
+        else:
+            response["statuscode"] = "400"
+            response["message"] = SYSTEMBUSY
+    except Exception as ex:
+        logger.info(ex)
+        response["statuscode"] = "500"
+        response["message"] = SYSTEMBUSY
+    return response
+async def billEnquriesService(setting: Setting,biller:ProductTypeModel, serviceprovider:ServiceProviderModel,params: dict = None):
+    response = {}
+    try:
+        logger.info(
+            f"started sending request to {serviceprovider.provider_name} at {datetime.now()}"
+        )
+        if serviceprovider.provider_code == '001':
+            params['key'] = serviceprovider.service_key
+            params['loginId'] =  serviceprovider.login_id
+        res = util.http(url=f'{serviceprovider.provider_url}validate',params=params,method=serviceprovider.auth_method)
         jsonresponse = res.json()
         if res.status_code == 200:
             if jsonresponse['statusCode'] in ["00","C001"]:
