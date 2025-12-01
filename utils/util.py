@@ -266,7 +266,7 @@ def generateOTP():
 
 
 def generateUniqueId():
-    return "2510" + str(uuid.uuid5(uuid.NAMESPACE_DNS, "payvantage-ng.com").int)
+    return str(uuid.uuid4().int)
 
 def formatDateOfBirth(dob:str):
     try:

@@ -150,8 +150,8 @@ async def validateTransactionPIN(
         logger.info(f"PIN tries for {payload.msisdn}: {pintries}")
 
         if pintries >= setting.max_pin_tries:
-            customer.active = False
-            customer.blacklisted = True
+            account.customer.active = False
+            account.customer.blacklisted = True
             account.active = False
             account.blacklisted = True
             customerQuery.create(db=db, model=account)
