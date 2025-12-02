@@ -295,7 +295,7 @@ async def accountTransferInterByBankOne(setting: Setting,params: dict = None):
         response["statuscode"] = "201"
         response["message"] = PENDING
     return response
-async def sendSms(setting: Setting, message: str):
+async def sendSms(setting: Setting,params: dict):
     response = {}
     try:
         logger.info(
@@ -304,7 +304,7 @@ async def sendSms(setting: Setting, message: str):
         
         bankOneResponse = util.http(
                             url=f"{setting.bankone_url}BankOneWebAPI/api/Messaging/SaveBulkSms/2?authToken={setting.bankone_token}",
-                            data=message,method="POST")
+                            params=params)
         if bankOneResponse.status_code == 200:
             res = bankOneResponse.json()
             if res["IsSuccessful"] is True:
