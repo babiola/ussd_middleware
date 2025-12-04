@@ -162,7 +162,6 @@ async def open_account(db:Session,payload:OpenAccountRequest,response:Response,s
                                     'AccountNumber':createAccount["data"]["AccountNumber"],
                                     'To':util.formatPhoneFull(payload.msisdn),
                                     'Body':message,
-                                    'AccountId':createAccount["data"]["CustomerID"],
                                     'ReferenceNo':util.generateUniqueId()
                                 }
                                 background_task.add_task(externalService.sendSms,setting=setting,params=paramsMsg)
@@ -278,7 +277,6 @@ async def balance(account:AccountModel,request: Request,response: Response,setti
                     'AccountNumber':account.accountNumber,
                     'To':account.customer.phonenumber,
                     'Body':message,
-                    'AccountId':account.customerNumber,
                     'ReferenceNo':util.generateUniqueId()
                       }
                 background_task.add_task(externalService.sendSms,setting=setting,params=paramsMsg)
