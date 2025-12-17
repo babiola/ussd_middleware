@@ -158,12 +158,13 @@ async def open_account(db:Session,payload:OpenAccountRequest,response:Response,s
                             savecustomer = customerQuery.create_account(db=db,user=customer)
                             if savecustomer:
                                 message=f"Your Rayyan MFB Account Number is {createAccount['data']['AccountNumber']}"
-                                paramsMsg ={
+                                paramsMsg =[{
                                     'AccountNumber':createAccount["data"]["AccountNumber"],
                                     'To':util.formatPhoneFull(payload.msisdn),
+                                    "AccountId": createAccount["data"]["CustomerID"],
                                     'Body':message,
                                     'ReferenceNo':util.generateUniqueId()
-                                }
+                                }]
                                 background_task.add_task(externalService.sendSms,setting=setting,params=paramsMsg)
                                 return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=createAccount['message'],data=createAccount["data"]["AccountNumber"])
                             else:
@@ -273,12 +274,13 @@ async def balance(account:AccountModel,request: Request,response: Response,setti
                 account.updated_at = datetime.now()
                 background_task.add_task(customerQuery.create, db=db, model=account)
                 message=f"Account Balance for {account.accountNumber} is {checkBalance['data']['WithdrawableBalance']}"
-                paramsMsg ={
+                paramsMsg =[{
                     'AccountNumber':account.accountNumber,
                     'To':account.customer.phonenumber,
+                    "AccountId": account.customerNumber,
                     'Body':message,
                     'ReferenceNo':util.generateUniqueId()
-                      }
+                      }]
                 background_task.add_task(externalService.sendSms,setting=setting,params=paramsMsg)
                 logger.info(f"Account Balance for {account.accountNumber} is {account.balance}")
                 return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data=checkBalance['data']['WithdrawableBalance'])
