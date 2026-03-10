@@ -91,7 +91,8 @@ async def bankNameEnquiry(request:Request,response: Response, setting: Setting, 
 async def bankTransferIntra(request:Request,account:AccountModel,response: Response, setting: Setting, db: Session, payload: TransferRequest,background_task: BackgroundTasks):
     try:
         logger.info(f"started intra bank transfer to account {payload.receipient}")
-        params = {"FromAccountNumber": account.accountNumber,"Amount":f"{int(payload.amount)*100}","ToAccountNumber":payload.receipient,"RetrievalReference": util.generateId(),"Narration": f"USSD-TRF/{util.mask_email(payload.receipient)}",}
+        transactionReference = util.generateId()
+        params = {"FromAccountNumber": account.accountNumber,"Amount":f"{int(payload.amount)*100}","ToAccountNumber":payload.receipient,"RetrievalReference": transactionReference,"Narration":f"USSD-TRF/{transactionReference}/{payload.receipientName}:{payload.receipient[-6:]}",}
         debitAccount =await externalService.accountTransferIntraByBankOne(setting=setting,params=params)
         if debitAccount['statuscode'] == str(status.HTTP_200_OK):
             #background_task.add_task(routeBillToProvider,payload=payload,biller=biller,account=account,db=db,setting=setting)
@@ -109,6 +110,7 @@ async def bankTransferIntra(request:Request,account:AccountModel,response: Respo
 async def bankTransferInter(request:Request,account:AccountModel,response: Response, setting: Setting, db: Session, payload: TransferRequest,background_task: BackgroundTasks):
     try:
         logger.info(f"started payment transfer for bank {payload.receipient} with account {payload.msisdn}")
+        transactionReference = util.generateId()
         params = {
              "Amount":f"{int(payload.amount)*100}",
              "AppzoneAccount":"",
@@ -121,8 +123,8 @@ async def bankTransferInter(request:Request,account:AccountModel,response: Respo
             "ReceiverName":payload.receipientName,
             "ReceiverBVN":"",
             "ReceiverKYC":"",
-            "Narration":f"USSD-TRF/{util.mask_email(payload.receipient)}",
-            "TransactionReference":util.generateId(),
+            "Narration":f"USSD-TRF/{transactionReference}/{payload.receipientName}:{payload.receipient[-6:]}",
+            "TransactionReference":transactionReference,
             "NIPSessionID":"",}
         debitAccount = await externalService.accountTransferInterByBankOne(setting=setting,params=params)
         if debitAccount['statuscode'] == str(status.HTTP_200_OK):

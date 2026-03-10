@@ -124,6 +124,8 @@ async def open_account(db:Session,payload:OpenAccountRequest,response:Response,s
                             "CustomerSignature": "",
                             "IdentificationImage": retrieveBvn['base64Image']
                         }
+                        response.status_code = status.HTTP_400_BAD_REQUEST
+                        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription="Service Unavailable")
                         createAccount = await externalService.openAccount(setting=setting,params=params)
                         logger.info(createAccount)
                         if createAccount['statuscode'] == str(status.HTTP_200_OK):
