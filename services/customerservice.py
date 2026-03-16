@@ -94,38 +94,9 @@ async def open_account(db:Session,payload:OpenAccountRequest,response:Response,s
                             "Email":'info@rayyan.com' if retrieveBvn.get('email','info@rayyan.com') == '' else retrieveBvn.get('email','info@rayyan.com'),
                             "NotificationPreference": 0,
                             "TransactionPermission": "0",
-                            "AccountTier": "1"} if accountType == AccountLevelEnum.TIER3 else {
-                            "TransactionTrackingRef":util.generateUniqueId(),
-                            "AccountOpeningTrackingRef": util.formatPhoneShort(retrieveBvn['phoneNumber1']),
-                            "ProductCode": "103",
-                            "FirstName":retrieveBvn['firstName'],
-                            "LastName":retrieveBvn['lastName'],
-                            "OtherNames": f"{retrieveBvn['middleName']}",
-                            "BVN":retrieveBvn['bvn'],
-                            "NationalIdentityNo":retrieveBvn['nin'],
-                            "PhoneNo": retrieveBvn['phoneNumber1'],
-                            "Gender":retrieveBvn['gender'],
-                            "PlaceOfBirth":retrieveBvn['lgaOfOrigin'],
-                            "DateOfBirth": retrieveBvn['dateOfBirth'],
-                            "Address":retrieveBvn['residentialAddress'],
-                            "AccountTier": "1",
-                            "CustomerImage":retrieveBvn['base64Image'],
-                            "AccountOfficerCode": "100",
-                            "HasSufficientInfoOnAccountInfo": True,
-                            "Email":'info@rayyan.com' if retrieveBvn.get('email','info@rayyan.com') == '' else retrieveBvn.get('email','info@rayyan.com'),
-                            "NotificationPreference":0,
-                            "TransactionPermission": "0",
-                            "AccountInformationSource": 0,
-                            "NextOfKinPhoneNo": "",
-                            "NextOfKinName": "",
-                            "ReferralPhoneNo": "",
-                            "ReferralName": "",
-                            "OtherAccountInformationSource": "",
-                            "CustomerSignature": "",
-                            "IdentificationImage": retrieveBvn['base64Image']
-                        }
-                        response.status_code = status.HTTP_400_BAD_REQUEST
-                        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription="Service Unavailable")
+                            "AccountTier": "1"}
+                        #response.status_code = status.HTTP_400_BAD_REQUEST
+                        #return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription="Service Unavailable")
                         createAccount = await externalService.openAccount(setting=setting,params=params)
                         logger.info(createAccount)
                         if createAccount['statuscode'] == str(status.HTTP_200_OK):
@@ -153,7 +124,7 @@ async def open_account(db:Session,payload:OpenAccountRequest,response:Response,s
                                                 isDefaultPayment = True,
                                                 blacklisted = False,
                                                 balance = "0",
-                                                level = AccountLevelEnum.TIER3
+                                                level = AccountLevelEnum.TIER1
                                     )],
                                     created_at = datetime.now(),
                                     updated_at = datetime.now())

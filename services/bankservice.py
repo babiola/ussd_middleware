@@ -92,7 +92,13 @@ async def bankTransferIntra(request:Request,account:AccountModel,response: Respo
     try:
         logger.info(f"started intra bank transfer to account {payload.receipient}")
         transactionReference = util.generateId()
-        params = {"FromAccountNumber": account.accountNumber,"Amount":f"{int(payload.amount)*100}","ToAccountNumber":payload.receipient,"RetrievalReference": transactionReference,"Narration":f"USSD-TRF/{transactionReference}/{payload.receipientName}:{payload.receipient[-6:]}",}
+        params = {
+            "FromAccountNumber": account.accountNumber,
+            "Amount": f"{int(payload.amount)*100}",
+            "ToAccountNumber": payload.receipient,
+            "RetrievalReference": transactionReference,
+            "Narration": f"USSD-TRF/{transactionReference}/{payload.receipientName}:{payload.receipient[-6:]}"
+        }
         debitAccount =await externalService.accountTransferIntraByBankOne(setting=setting,params=params)
         if debitAccount['statuscode'] == str(status.HTTP_200_OK):
             #background_task.add_task(routeBillToProvider,payload=payload,biller=biller,account=account,db=db,setting=setting)
