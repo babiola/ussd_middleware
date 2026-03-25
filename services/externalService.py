@@ -30,7 +30,7 @@ async def checkBvn(setting: Setting,bvn:str,bvnType:str):
             if res.status_code == 200:
                 if resp["status"] is True:
                     response["statuscode"] = str(res.status_code)
-                    response["message"] = resp["detail"]
+                    response["message"] = resp["statusMessage"]
                     response["data"] = resp["data"]
                 else:
                     response["statuscode"] = "400"
