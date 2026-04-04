@@ -1,5 +1,5 @@
 from celery import Celery
-
+from celery.schedules import crontab
 celery_app = Celery(
     "rayyan",
     broker="redis://localhost:6379/0",
@@ -12,12 +12,16 @@ celery_app.conf.update(
     accept_content=["json"],
     timezone="Africa/Lagos",
     enable_utc=True,
+    task_soft_time_limit=300,
+    task_time_limit=360,
+    beat_max_loop_interval=5,
 )
 
 celery_app.conf.beat_schedule = {
     "run-product-updates-every-60-seconds": {
-        "task": "task.tasks.run_product_updates",
-        "schedule": 60.0,
+        "task": "task.tasks.run_product_updates", 
+        "schedule": crontab(hour=0, minute=0),
+        "options": {"queue": "scheduled"},
     },
     "requery-pending-transactions": {
         "task": "task.tasks.requery_pending_transactions",
