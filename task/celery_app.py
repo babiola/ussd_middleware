@@ -25,4 +25,4 @@ celery_app.conf.beat_schedule = {
         "options": {"queue": "requery"},
     },
 }
-#celery_app.autodiscover_tasks(["task.requery", "task.schedule"])
+celery_app.autodiscover_tasks(["task"])
