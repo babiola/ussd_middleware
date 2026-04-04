@@ -22,76 +22,119 @@ from fastapi import (
     BackgroundTasks,
 )
 logger = logging.getLogger(__name__)
-async def buyAirtime(db:Session,request:Request,payload:BillPaymentRequest,response:Response,setting:Setting,account:AccountModel,background_task: BackgroundTasks):
+async def buyAirtime(db:Session,payload:BillPaymentRequest,response:Response,setting:Setting,account:AccountModel,background_task: BackgroundTasks):
     try:
-        logger.info(f"Started airtime purchase of N{payload.amount} for {payload.receipient} from account {payload.accountNumber} with biller {payload.billerId}  at {datetime.now()}")
-        biller = productQuery.getBillerByBillerId(db=db,billerId=payload.billerId,billtype="airtime")
+        logger.info(f"Started airtime purchase of N{payload.amount} for {payload.recipient} from account {payload.accountNumber} with biller {payload.billerId}  at {datetime.now()}")
+        biller = productQuery.getBillerByBillerId(db=db,billerId=payload.billerId.upper(),billtype="airtime")
         if biller:
-            logger.info(f"Biller {biller.billerName} is available for {payload.receipient}  at {datetime.now()}")
-            transaction = TransactionModel(
-                        customer_id = account.customer_id,
-                        account_id = account.id,
-                        reference = f"{biller.billerName[:3]}{util.generateId()}",
-                        amount = payload.amount,
-                        product = biller.billerType,
-                        statusCode = TransactionStatusEnum.PROCESSING.value,
-                        created_at =datetime.now()
-                        )
-            logTransaction = paymentQuery.create(db=db,model=transaction)
-            if logTransaction:
-                logger.info(f"Started debit process for  {payload.receipient} with account {payload.accountNumber}  at {datetime.now()}")
-                params = {"GLCode":setting.bankone_cust_gl,"RetrievalReference": util.generateId(),"AccountNumber": account.accountNumber,"Amount": payload.amount,"Narration":f"{biller.billerName}/{payload.receipient}/N{payload.amount}"}
-                debitAccount =await externalService.debitAccountByBankOne(setting=setting,params=params)
-                if debitAccount['statuscode'] == str(status.HTTP_200_OK):
-                    logger.info(f"Debit successful for  {payload.receipient} with account {payload.accountNumber} at {datetime.now()}")
-                    background_task.add_task(routeBillToProvider,payload=payload,biller=biller,account=account,transaction=logTransaction,db=db,setting=setting)
-                    return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
+            logger.info(f"Biller {biller.billerName} is available for {payload.recipient} at {datetime.now()}")
+            if biller.service_provider:
+                logger.info(f"service provider {biller.service_provider.provider_name} has been configured for {biller.billerName} {payload.recipient}  at {datetime.now()}")
+                transaction = TransactionModel(customer_id = account.customer_id,account_id = account.id,reference = f"{biller.billerId[:3]}-{util.generateUniqueTransactionId()}",recipient = payload.recipient,amount = payload.amount,product_id = biller.product_id,product_type_id = biller.id,service_provider_id = biller.service_provider_id,created_at =datetime.now(),)
+                logTransaction = paymentQuery.create(db=db,model=transaction)
+                if logTransaction:
+                    logger.info(f"Started debit process for  {payload.recipient} with account {payload.accountNumber}  at {datetime.now()}")
+                    params = {"GLCode":setting.bankone_cust_gl,"RetrievalReference": util.generateId(),"AccountNumber": account.accountNumber,"Amount": payload.amount,"Narration":f"{biller.billerName}/{payload.recipient}/N{payload.amount}"}
+                    debitAccount = await externalService.debitAccountByBankOne(setting=setting,params=params)
+                    logTransaction.debitStatus = debitAccount['statuscode']
+                    logTransaction.debit_description = debitAccount['message']
+                    logTransaction.updated_at = datetime.now()
+                    if debitAccount['statuscode'] == str(status.HTTP_200_OK):
+                        logger.info(f"Debit successful for  {payload.recipient} with account {payload.accountNumber} at {datetime.now()}")
+                        logTransaction.debitReference = str(debitAccount['data'])
+                        updatedTransaction = paymentQuery.create(db=db,model=logTransaction)
+                        background_task.add_task(routeBillToProvider,payload=payload,transactionId=updatedTransaction.id,db=db,setting=setting)
+                        return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
+                    elif debitAccount['statuscode'] == "V00":
+                        logger.info(f"Debit pending for  {payload.recipient} with account {payload.accountNumber} at {datetime.now()}")
+                        updatedTransaction = paymentQuery.create(db=db,model=logTransaction)
+                        response.status_code = status.HTTP_400_BAD_REQUEST
+                        return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=PENDING)
+                    elif debitAccount['statuscode'] == "A00":
+                        logger.info(f"Debit failed for  {payload.recipient} with account {payload.accountNumber} at {datetime.now()}")
+                        logTransaction.statusCode = "C13"
+                        logTransaction.statusMessage = TransactionStatusEnum.FAILED.value
+                        updatedTransaction = paymentQuery.create(db=db,model=logTransaction)
+                        #background_task.add_task(routeBillToProvider,payload=payload,transactionId=updatedTransaction.id,db=db,setting=setting)
+                        response.status_code = status.HTTP_400_BAD_REQUEST
+                        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=FAILED)
+                    else:
+                        logTransaction.statusCode = "C13"
+                        logTransaction.statusMessage = TransactionStatusEnum.FAILED.value
+                        updatedTransaction = paymentQuery.create(db=db,model=logTransaction)
+                        response.status_code = status.HTTP_400_BAD_REQUEST
+                        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=debitAccount['message'])
                 else:
-                    logTransaction.statusCode = TransactionStatusEnum.FAILED.value
-                    logTransaction.statusMessage = INSUFFICIENTFUND
-                    updatedTransaction = paymentQuery.create(db=db,model=logTransaction)
                     response.status_code = status.HTTP_400_BAD_REQUEST
-                    return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INSUFFICIENTFUND)
+                    return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=UNABLE)
             else:
+                logger.info(f"service provider has not been configured for {biller.billerName} {payload.recipient}  at {datetime.now()}")
                 response.status_code = status.HTTP_400_BAD_REQUEST
-                return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=UNABLE)
+                return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INVALIDPROVIDER)
         else:
+            logger.info(f"biller not found for {payload.recipient}  at {datetime.now()}")
             response.status_code = status.HTTP_400_BAD_REQUEST
             return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INVALIDBILLER)
     except Exception as ex:
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
         return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)   
-async def buyDataPlan(db:Session,request:Request,payload:BillPaymentRequest,response:Response,setting:Setting,account:AccountModel,background_task: BackgroundTasks):
+async def buyDataPlan(db:Session,payload:BillPaymentRequest,response:Response,setting:Setting,account:AccountModel,background_task: BackgroundTasks):
     try:
-        logger.info(f"Started buy {payload.billerId} of {payload.amount} for {payload.receipient} from account {payload.accountNumber}")
+        logger.info(f"Started buy {payload.billerId} of {payload.amount} for {payload.recipient} from account {payload.accountNumber}")
         biller = productQuery.getBillerByBillerId(db=db,billerId=payload.billerId,billtype="data")
         if biller:
-            transaction = TransactionModel(
-                        customer_id = account.customer_id,
-                        account_id = account.id,
-                        reference = f"{biller.billerName[:3]}{util.generateId()}",
-                        amount = payload.amount,
-                        product = biller.billerType,
-                        statusCode = TransactionStatusEnum.PROCESSING.value,
-                        created_at =datetime.now()
-                        )
-            logTransaction = paymentQuery.create(db=db,model=transaction)
-            if logTransaction:
-                params = {"GLCode":setting.bankone_cust_gl,"RetrievalReference": util.generateId(),"AccountNumber": account.accountNumber,"Amount": payload.amount,"Narration":f"{biller.billerName}/{payload.receipient}/N{payload.amount}"}
-                debitAccount =await externalService.debitAccountByBankOne(setting=setting,params=params)
-                if debitAccount['statuscode'] == str(status.HTTP_200_OK):
-                    background_task.add_task(routeBillToProvider,payload=payload,biller=biller,account=account,transaction=logTransaction,db=db,setting=setting)
-                    return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
+            logger.info(f"Biller {biller.billerName} is available for {payload.recipient} at {datetime.now()}")
+            if biller.service_provider:
+                logger.info(f"service provider {biller.service_provider.provider_name} has been configured for {biller.billerName} {payload.recipient}  at {datetime.now()}")
+                package = paymentQuery.getPackageByPackageCode(db=db,packageId=payload.packageId)
+                if package:                    
+                    logger.info(f"Package {package.short_description} {package.databundle} {package.productId} is available for {payload.recipient} at {datetime.now()}")
+                    transaction = TransactionModel(customer_id = account.customer_id,account_id = account.id,reference = f"{biller.billerId[:3]}-{util.generateUniqueTransactionId()}",recipient = payload.recipient,amount = package.amount,product_id = biller.product_id,product_type_id = biller.id,service_provider_id = biller.service_provider_id,created_at =datetime.now(),)
+                    logTransaction = paymentQuery.create(db=db,model=transaction)
+                    if logTransaction:
+                        logger.info(f"Started debit process for  {payload.recipient} with account {payload.accountNumber}  at {datetime.now()}")
+                        params = {"GLCode":setting.bankone_cust_gl,"RetrievalReference": util.generateId(),"AccountNumber": account.accountNumber,"Amount": package.amount,"Narration":f"{biller.billerName}/{payload.recipient}/N{(int(package.amount)/100)}"}
+                        debitAccount = await externalService.debitAccountByBankOne(setting=setting,params=params)
+                        logTransaction.debitStatus = debitAccount['statuscode']
+                        logTransaction.debit_description = debitAccount['message']
+                        logTransaction.updated_at = datetime.now()
+                        if debitAccount['statuscode'] == str(status.HTTP_200_OK):
+                            logger.info(f"Debit successful for  {payload.recipient} with account {payload.accountNumber} at {datetime.now()}")
+                            logTransaction.debitReference = str(debitAccount['data'])
+                            updatedTransaction = paymentQuery.create(db=db,model=logTransaction)
+                            background_task.add_task(routeBillToProvider,payload=payload,transactionId=updatedTransaction.id,db=db,setting=setting)
+                            return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
+                        elif debitAccount['statuscode'] == "V00":
+                            logger.info(f"Debit pending for  {payload.recipient} with account {payload.accountNumber} at {datetime.now()}")
+                            updatedTransaction = paymentQuery.create(db=db,model=logTransaction)
+                            response.status_code = status.HTTP_400_BAD_REQUEST
+                            return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=PENDING)
+                        elif debitAccount['statuscode'] == "A00":
+                            logger.info(f"Debit failed for  {payload.recipient} with account {payload.accountNumber} at {datetime.now()}")
+                            logTransaction.statusCode = "C13"
+                            logTransaction.statusMessage = TransactionStatusEnum.FAILED.value
+                            updatedTransaction = paymentQuery.create(db=db,model=logTransaction)
+                            #background_task.add_task(routeBillToProvider,payload=payload,transactionId=updatedTransaction.id,db=db,setting=setting)
+                            response.status_code = status.HTTP_400_BAD_REQUEST
+                            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=FAILED)
+                        else:
+                            logTransaction.statusCode = "C13"
+                            logTransaction.statusMessage = TransactionStatusEnum.FAILED.value
+                            updatedTransaction = paymentQuery.create(db=db,model=logTransaction)
+                            response.status_code = status.HTTP_400_BAD_REQUEST
+                            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=debitAccount['message'])
+                    else:
+                        response.status_code = status.HTTP_400_BAD_REQUEST
+                        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=UNABLE)
                 else:
-                    logTransaction.statusCode = TransactionStatusEnum.FAILED.value
-                    logTransaction.statusMessage = INSUFFICIENTFUND
-                    updatedTransaction = paymentQuery.create(db=db,model=logTransaction)
+                    logger.info(f"Package not found for {payload.recipient}  at {datetime.now()}")
                     response.status_code = status.HTTP_400_BAD_REQUEST
-                    return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INSUFFICIENTFUND)
+                    return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription="Invalid Data Plan")
             else:
+                logger.info(f"service provider has not been configured for {biller.billerName} {payload.recipient}  at {datetime.now()}")
                 response.status_code = status.HTTP_400_BAD_REQUEST
-                return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=UNABLE)
+                return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INVALIDPROVIDER)    
         else:
             response.status_code = status.HTTP_400_BAD_REQUEST
             return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INVALIDBILLER)
@@ -99,39 +142,62 @@ async def buyDataPlan(db:Session,request:Request,payload:BillPaymentRequest,resp
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
         return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)   
-async def billPayment(db:Session,request:Request,payload:BillPaymentRequest,response:Response,setting:Setting,account:AccountModel,background_task: BackgroundTasks):
+async def billPayment(db:Session,payload:BillPaymentRequest,response:Response,setting:Setting,account:AccountModel,background_task: BackgroundTasks):
     try:
-        logger.info(f"Started buy {payload.billerId} of {payload.amount} for {payload.receipient} from account {payload.accountNumber}")
+        logger.info(f"Started buy {payload.billerId} of {payload.amount} for {payload.recipient} from account {payload.accountNumber}")
         biller = productQuery.getBillerByBillerId(db=db,billerId=payload.billerId)
         if biller:
-            transaction = TransactionModel(
-                        customer_id = account.customer_id,
-                        account_id = account.id,
-                        reference = f"{biller.billerName[:3]}{util.generateId()}",
-                        amount = payload.amount,
-                        product = biller.billerType,
-                        statusCode = TransactionStatusEnum.PROCESSING.value,
-                        created_at =datetime.now()
-                        )
-            logTransaction = paymentQuery.create(db=db,model=transaction)
-            if logTransaction:
-                params = {"GLCode":setting.bankone_cust_gl,"RetrievalReference": util.generateId(),"AccountNumber": account.accountNumber,"Amount": payload.amount,"Narration":f"{biller.billerName}/{payload.receipient}/N{payload.amount}"}
-                debitAccount =await externalService.debitAccountByBankOne(setting=setting,params=params)
-                if debitAccount['statuscode'] == str(status.HTTP_200_OK):
-                    logTransaction.statusCode = TransactionStatusEnum.PENDING.value
-                    logTransaction.statusMessage = "Debit Successful"
-                    updatedTransaction = paymentQuery.create(db=db,model=logTransaction)
-                    background_task.add_task(routeBillToProvider,payload=payload,biller=biller,account=account,transaction=logTransaction,db=db,setting=setting)
-                    return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
+            logger.info(f"Biller {biller.billerName} is available for {payload.recipient} at {datetime.now()}")
+            if biller.service_provider:
+                logger.info(f"service provider {biller.service_provider.provider_name} has been configured for {biller.billerName} {payload.recipient}  at {datetime.now()}")
+                package = paymentQuery.getPackageByPackageCode(db=db,packageId=payload.packageId)
+                if package:                    
+                    logger.info(f"Package {package.short_description} {package.databundle} {package.productId} is available for {payload.recipient} at {datetime.now()}")
+                    transaction = TransactionModel(customer_id = account.customer_id,account_id = account.id,reference = f"{biller.billerId[:3]}-{util.generateUniqueTransactionId()}",recipient = payload.recipient,amount = payload.amount,product_id = biller.product_id,product_type_id = biller.id,service_provider_id = biller.service_provider_id,created_at =datetime.now(),)
+                    logTransaction = paymentQuery.create(db=db,model=transaction)
+                    if logTransaction:
+                        logger.info(f"Started debit process for  {payload.recipient} with account {payload.accountNumber}  at {datetime.now()}")
+                        params = {"GLCode":setting.bankone_cust_gl,"RetrievalReference": util.generateId(),"AccountNumber": account.accountNumber,"Amount": payload.amount,"Narration":f"{biller.billerName}/{payload.recipient}/N{(int(payload.amount)/100)}"}
+                        debitAccount = await externalService.debitAccountByBankOne(setting=setting,params=params)
+                        logTransaction.debitStatus = debitAccount['statuscode']
+                        logTransaction.debit_description = debitAccount['message']
+                        logTransaction.updated_at = datetime.now()
+                        if debitAccount['statuscode'] == str(status.HTTP_200_OK):
+                            logger.info(f"Debit successful for  {payload.recipient} with account {payload.accountNumber} at {datetime.now()}")
+                            logTransaction.debitReference = str(debitAccount['data'])
+                            updatedTransaction = paymentQuery.create(db=db,model=logTransaction)
+                            background_task.add_task(routeBillToProvider,payload=payload,transactionId=updatedTransaction.id,db=db,setting=setting)
+                            return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
+                        elif debitAccount['statuscode'] == "V00":
+                            logger.info(f"Debit pending for  {payload.recipient} with account {payload.accountNumber} at {datetime.now()}")
+                            updatedTransaction = paymentQuery.create(db=db,model=logTransaction)
+                            response.status_code = status.HTTP_400_BAD_REQUEST
+                            return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=PENDING)
+                        elif debitAccount['statuscode'] == "A00":
+                            logger.info(f"Debit failed for  {payload.recipient} with account {payload.accountNumber} at {datetime.now()}")
+                            logTransaction.statusCode = "C13"
+                            logTransaction.statusMessage = TransactionStatusEnum.FAILED.value
+                            updatedTransaction = paymentQuery.create(db=db,model=logTransaction)
+                            #background_task.add_task(routeBillToProvider,payload=payload,transactionId=updatedTransaction.id,db=db,setting=setting)
+                            response.status_code = status.HTTP_400_BAD_REQUEST
+                            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=FAILED)
+                        else:
+                            logTransaction.statusCode = "C13"
+                            logTransaction.statusMessage = TransactionStatusEnum.FAILED.value
+                            updatedTransaction = paymentQuery.create(db=db,model=logTransaction)
+                            response.status_code = status.HTTP_400_BAD_REQUEST
+                            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=debitAccount['message'])
+                    else:
+                        response.status_code = status.HTTP_400_BAD_REQUEST
+                        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=UNABLE)
                 else:
-                    logTransaction.statusCode = TransactionStatusEnum.FAILED.value
-                    logTransaction.statusMessage = INSUFFICIENTFUND
-                    updatedTransaction = paymentQuery.create(db=db,model=logTransaction)
+                    logger.info(f"Package not found for {payload.recipient}  at {datetime.now()}")
                     response.status_code = status.HTTP_400_BAD_REQUEST
-                    return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INSUFFICIENTFUND)
+                    return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription="Invalid Data Plan")
             else:
+                logger.info(f"service provider has not been configured for {biller.billerName} {payload.recipient}  at {datetime.now()}")
                 response.status_code = status.HTTP_400_BAD_REQUEST
-                return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=UNABLE)
+                return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INVALIDPROVIDER)    
         else:
             response.status_code = status.HTTP_400_BAD_REQUEST
             return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INVALIDBILLER)
@@ -141,18 +207,28 @@ async def billPayment(db:Session,request:Request,payload:BillPaymentRequest,resp
         return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)  
 async def billNameEnquiry(db:Session,payload:BillNameEnquiryRequest,response:Response,setting:Setting):
     try:
-        logger.info(f"Started bill name enquiry {payload.billerId} of {payload.amount} for {payload.receipient} at {datetime.now()}")
+        logger.info(f"Started bill name enquiry {payload.billerId} of {payload.amount} for {payload.recipient} at {datetime.now()}")
         biller = productQuery.getBillerByBillerId(db=db,billerId=payload.billerId)
         if biller:
-            provider = paymentQuery.getProviderByProduct(db=db,providerId=biller.service_provider_id)
-            if provider:
-                logger.info(f"Provider {provider.provider_name} has been configured for  {payload.receipient} at {datetime.now()}")
-                params ={"product":str(biller.billerType).upper(),"customerId": payload.receipient,"type" :str(biller.billerId).upper()}
-                if biller.billerType.lower() == "electricity":
-                    params["type"] = str(payload.packageId).upper()
-                    params["disco"] =str(biller.billerId).upper()
-                enquiry = await externalService.billEnquriesService(biller=biller,setting=setting,serviceprovider=provider,params=params)
-        return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data={"customerName":"Adamu Chijioke Omolaja"})
+            if biller.service_provider:
+                logger.info(f"Provider {biller.service_provider.provider_name} has been configured for  {payload.recipient} at {datetime.now()}")
+                params ={"productId":payload.packageId,"customerId": payload.recipient,"serviceId" :str(biller.billerId)}
+                enquiry = await externalService.billEnquriesServiceNew(biller=biller,setting=setting,serviceprovider=biller.service_provider,params=params)
+                if enquiry['statuscode'] == str(status.HTTP_200_OK):
+                    logger.info(f"Bill name enquiry successful for  {payload.recipient} at {datetime.now()}")
+                    return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data={"customerName":enquiry['data']['customerName'],"customerAddress":enquiry['data']['customerAddress']})
+                else:
+                    logger.info(f"Bill name enquiry failed for  {payload.recipient} at {datetime.now()}")
+                    response.status_code = status.HTTP_400_BAD_REQUEST
+                    return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=enquiry['message'])
+            else:
+                logger.info(f"Provider has not been configured for  {payload.recipient} at {datetime.now()}")
+                response.status_code = status.HTTP_400_BAD_REQUEST
+                return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INVALIDPROVIDER)
+        else:
+            logger.info(f"Biller not found for  {payload.recipient} at {datetime.now()}")
+            response.status_code = status.HTTP_400_BAD_REQUEST
+            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INVALIDBILLER)
     except Exception as ex:
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
@@ -193,35 +269,90 @@ async def getBillerPackages(db:Session,response:Response,setting:Setting,billerI
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
         return PackagesResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)
-async def routeBillToProvider(payload:BillPaymentRequest,biller:ProductTypeModel,account:AccountModel,transaction:TransactionModel,db:Session,setting:Setting):
+async def routeBillToProvider(payload:BillPaymentRequest,transactionId:int,db:Session,setting:Setting):
     try:
-        logger.info(f"Started vending process for  {payload.receipient} with account {payload.accountNumber} with biller {biller.billerName} at {datetime.now()}")
+        logger.info(f"Started processing transaction {transactionId} for  {payload.recipient} with account {payload.accountNumber} with at {datetime.now()}")
         params = {}
-        provider = paymentQuery.getProviderByProduct(db=db,providerId=biller.service_provider_id)
-        if provider:
-            logger.info(f"Provider {provider.provider_name} has been configured for  {payload.receipient} with account {payload.accountNumber}  at {datetime.now()}")
-            params['amount'] = str(int(int(payload.amount)/100))
-            params['recipient'] = payload.receipient
-            params['serviceId'] = provider.billerId
-            params['channelCode'] = '01'
-            params['operator'] = biller.billerName
-            params['requestId'] = transaction.reference
-            params['date'] = datetime.now().isoformat()
-            params['accountNo'] = account.accountNumber
-            params['productId'] = payload.packageId
-            purchase = await externalService.purchaseService(biller=biller,setting=setting,serviceprovider=provider,params=params)
-            if purchase['statuscode'] == str(status.HTTP_200_OK):
-                logger.info(f"Vending successful for  {payload.receipient} with account {payload.accountNumber} with biller {biller.billerName} at {datetime.now()}")
-                transaction.statusCode = TransactionStatusEnum.SUCCESS.value
-                transaction.statusMessage = purchase['message']
-                transaction.providerReference = purchase['data']['confirmCode']
-                transaction.updated_at = datetime.now()
-            else:
-                transaction.statusCode = TransactionStatusEnum.FAILED.value
-                transaction.statusMessage = purchase['message']
-                transaction.updated_at = datetime.now()
-            updatedTransaction = paymentQuery.create(db=db,model=transaction)
-        return PackagesResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
+        transaction = paymentQuery.getTransactionById(db=db,transactionId=transactionId)
+        if transaction:
+            if transaction.product_type:
+                logger.info(f"Transaction {transactionId} has biller {transaction.product_type.billerName} for  {payload.recipient} with account {payload.accountNumber} at {datetime.now()}")
+                if transaction.provider:
+                    logger.info(f"Transaction {transactionId} has provider {transaction.provider.provider_name} for  {payload.recipient} with account {payload.accountNumber} at {datetime.now()}")
+                    if transaction.debitStatus == "200":
+                        logger.info(f"Transaction {transactionId} has successful debit for  {payload.recipient} with account {payload.accountNumber} at {datetime.now()}")
+                        params['amount'] = str(int(int(payload.amount)/100))
+                        params['recipient'] = payload.recipient
+                        params['serviceId'] = transaction.product_type.billerId
+                        params['channelCode'] = '01'
+                        params['operator'] = transaction.product_type.billerName
+                        params['requestId'] = transaction.reference
+                        params['date'] = datetime.now().isoformat()
+                        params['accountNo'] = transaction.account.accountNumber
+                        params['customerName'] = payload.customerName
+                        params['customerAddress'] =payload.customerAddress
+                        if payload.packageId:
+                            params['productId'] = payload.packageId
+                        purchase = await externalService.purchaseServiceNew(biller=transaction.product_type,setting=setting,serviceprovider=transaction.provider,payload=params)
+                        transaction.providerStatus = purchase['statuscode']
+                        transaction.providerDescription = purchase['message']
+                        transaction.updated_at = datetime.now()
+                        if purchase['statuscode'] == str(status.HTTP_200_OK):
+                            logger.info(f"Vending successful for  {payload.recipient} with account {payload.accountNumber} with biller {transaction.product_type.billerName} at {datetime.now()}")
+                            transaction.statusCode = "00"
+                            transaction.statusMessage = SUCCESS
+                            transaction.providerReference = purchase['data']['confirmCode']
+                            if transaction.product_type.billerType.lower() == "electricity":
+                                transaction.customerName = purchase['data']['customerName'] if 'customerName' in purchase['data'] else None
+                                transaction.token = purchase['data']['token'] if 'token' in purchase['data'] else None
+                                transaction.configureToken = purchase['data']['configureToken'] if 'configureToken' in purchase['data'] else None
+                                transaction.unit = purchase['data']['unit'] if 'unit' in purchase['data'] else None
+                                transaction.unitType = purchase['data']['unitType'] if 'unitType' in purchase['data'] else None
+                                message=f"Your {transaction.product_type.billerName} purchase was successful. Token {transaction.token}. Thank you for choosing Rayyan MFB. Dial *5113*amount# to buy airtime."
+                                paramsMsg =[{'AccountNumber':transaction.account.accountNumber,'To':util.formatPhoneFull(payload.msisdn),"AccountId": account.customerNumber,'Body':message,'ReferenceNo':util.generateUniqueId()}]
+                                await externalService.sendSms(setting=setting,params=paramsMsg)
+                        else:
+                            transaction.statusCode = purchase['statuscode']
+                            transaction.statusMessage = purchase['message']
+                        updatedTransaction = paymentQuery.create(db=db,model=transaction)
+                    return PackagesResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS)
     except Exception as ex:
         logger.info(ex)
         return PackagesResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)
+    finally:
+        db.close()
+def transactionRequery(db: Session,transaction:TransactionModel):
+    response = BaseResponse(statusCode= "C001",statusDescription= "Processing")
+    logger.info(f"Started TSQ for transaction {transaction.recipient} with reference {transaction.reference} with status {transaction.statusCode} and created at {transaction.created_at}  at {str(datetime.now())}")
+    try:
+        logger.info(f"Started Requerying for Past transactions {transaction.recipient} with status {transaction.statusCode} at transaction ID {str(transaction.id)}")
+        params={"loginId":transaction.provider.login_id,"key":transaction.provider.service_key,"requestId":transaction.reference}
+        res = util.http(url=f"{transaction.provider.provider_url}requery",params=params)
+        response = res.json()
+        if response:
+            if response["statusCode"] == "00":
+                logger.info(f"TSQ is still pending response for {util.formatPhone(msisdn=transaction.recipient)} with reference {transaction.reference}........ at {datetime.now()}")
+                transaction.statusCode = "200"
+                transaction.statusMessage = TransactionStatusEnum.SUCCESS.value
+                transaction.providerReference = response["tranxReference"]
+                transaction.providerStatus = response["statusCode"]
+                transaction.providerDescription = response["statusDescription"]
+                transaction.updated_at = datetime.now()
+                updatedTransaction = paymentQuery.create(db=db,model=transaction)
+                response.statusCode = "00"
+                response.statusDescription = TransactionStatusEnum.SUCCESS.value
+                return response
+            elif response["statusCode"] == "C13":
+                logger.info(f"TSQ failed for {util.formatPhone(msisdn=transaction.recipient)} with reference {transaction.reference}........ at {datetime.now()}")
+                transaction.statusCode = response["statusCode"]
+                transaction.statusMessage = response["statusDescription"]
+                transaction.providerStatus = response["statusCode"]
+                transaction.providerDescription = response["statusDescription"]
+                transaction.updated_at = datetime.now()
+                updatedTransaction = paymentQuery.create(db=db,model=transaction)
+                response.statusCode = "C13"
+                response.statusDescription =TransactionStatusEnum.FAILED.value
+                return response
+    except Exception as ex:
+        logger.info(f"Error requerying transactions {transaction.recipient} at {str(datetime.now())} with message {str(ex)}")
+    return response

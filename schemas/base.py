@@ -37,31 +37,31 @@ class PINRequest(BaseModel):
     pin: Optional[str]= None
     accountNumber: str
     msisdn: str
-    receipient:str
+    recipient:str
     telco:str
     sessionId:str
 class CheckBalanceRequest(PINRequest):
     pass
 class TransferPossibleRequest(BaseModel):
-    receipient: str
+    recipient: str
     msisdn: str
     telco:str
     sessionId:str
 class TransferNameEnquiryRequest(BaseModel):
     bankcode: Optional[str]= None
-    receipient: str
+    recipient: str
     msisdn: str
     telco:str
     sessionId:str
 class TransferRequest(PINRequest):
-    receipientName: Optional[str]= None
+    recipientName: Optional[str]= None
     amount: str
     bankcode: Optional[str]= None
 class TransferInterRequest(PINRequest):
     amount: str
     bankCode: str
 class BillNameEnquiryRequest(BaseModel):
-    receipient:str
+    recipient:str
     billerId:str
     amount: str
     packageId:Optional[str]= None

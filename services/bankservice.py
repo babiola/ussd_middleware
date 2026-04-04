@@ -37,7 +37,7 @@ async def banks(
 async def possibleBank(request:Request,response:Response,setting:Setting,payload:TransferPossibleRequest):
     try:
         if ALLBANK:
-            likelyBanks = filter(lambda bank:len(bank.Code) == 3 and isPossibleBank(bank=bank,account=payload.receipient),ALLBANK.banks)
+            likelyBanks = filter(lambda bank:len(bank.Code) == 3 and isPossibleBank(bank=bank,account=payload.recipient),ALLBANK.banks)
             logger.info(likelyBanks)
             if likelyBanks:
                 return BanksResponse(statusCode= str(status.HTTP_200_OK),statusDescription=SUCCESS,data=likelyBanks)
@@ -52,12 +52,12 @@ async def possibleBank(request:Request,response:Response,setting:Setting,payload
         return BanksResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=SYSTEMBUSY,)
 async def bankNameEnquiry(request:Request,response: Response, setting: Setting, db: Session, payload: TransferNameEnquiryRequest):
     try:
-        logger.info(f"started name enquiry for bank {payload.receipient} with account {payload.receipient}")
+        logger.info(f"started name enquiry for bank {payload.recipient} with account {payload.recipient}")
         if payload.bankcode:
             selectedBank = util.get_bank_by_code(bankcode=payload.bankcode, banks=ALLBANK.banks)
             if selectedBank:
                 params = {
-                    "AccountNumber": payload.receipient,
+                    "AccountNumber": payload.recipient,
                     "BankCode": payload.bankcode,
                 }
                 customerEnquiry =await externalService.accountEnquiryInterByBankOne(params=params,setting=setting)
@@ -70,7 +70,7 @@ async def bankNameEnquiry(request:Request,response: Response, setting: Setting, 
                 response.status_code = status.HTTP_400_BAD_REQUEST
                 return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription="INVALID BANK",)
         else:
-            params = {"AccountNo": payload.receipient}
+            params = {"AccountNo": payload.recipient}
             customerEnquiry =await externalService.accountEnquiryIntraByBankOne(params=params,setting=setting)
             if customerEnquiry and customerEnquiry['statuscode'] == str(status.HTTP_200_OK):
                 return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data=customerEnquiry["data"]["Name"],)
@@ -78,7 +78,7 @@ async def bankNameEnquiry(request:Request,response: Response, setting: Setting, 
                 response.status_code = status.HTTP_400_BAD_REQUEST
                 return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=customerEnquiry["message"],)
             
-            customer = customerQuery.getCustomerByMsisdn(db=db,msisdn=util.formatPhoneFull(payload.receipient))
+            customer = customerQuery.getCustomerByMsisdn(db=db,msisdn=util.formatPhoneFull(payload.recipient))
             if customer:
                 return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data=f"{customer.firstname} {customer.lastname}",)
             else:
@@ -90,14 +90,14 @@ async def bankNameEnquiry(request:Request,response: Response, setting: Setting, 
         return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=SYSTEMBUSY,)
 async def bankTransferIntra(request:Request,account:AccountModel,response: Response, setting: Setting, db: Session, payload: TransferRequest,background_task: BackgroundTasks):
     try:
-        logger.info(f"started intra bank transfer to account {payload.receipient}")
+        logger.info(f"started intra bank transfer to account {payload.recipient}")
         transactionReference = util.generateId()
         params = {
             "FromAccountNumber": account.accountNumber,
             "Amount": f"{int(payload.amount)*100}",
-            "ToAccountNumber": payload.receipient,
+            "ToAccountNumber": payload.recipient,
             "RetrievalReference": transactionReference,
-            "Narration": f"USSD-TRF/{transactionReference}/{payload.receipientName}:{payload.receipient[-6:]}"
+            "Narration": f"USSD-TRF/{transactionReference}/{payload.recipientName}:{payload.recipient[-6:]}"
         }
         debitAccount =await externalService.accountTransferIntraByBankOne(setting=setting,params=params)
         if debitAccount['statuscode'] == str(status.HTTP_200_OK):
@@ -115,21 +115,21 @@ async def bankTransferIntra(request:Request,account:AccountModel,response: Respo
         return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=SYSTEMBUSY,)
 async def bankTransferInter(request:Request,account:AccountModel,response: Response, setting: Setting, db: Session, payload: TransferRequest,background_task: BackgroundTasks):
     try:
-        logger.info(f"started payment transfer for bank {payload.receipient} with account {payload.msisdn}")
+        logger.info(f"started payment transfer for bank {payload.recipient} with account {payload.msisdn}")
         transactionReference = util.generateId()
         params = {
              "Amount":f"{int(payload.amount)*100}",
              "AppzoneAccount":"",
             "Payer":f"{account.customer.lastname} {account.customer.firstname}",
             "PayerAccountNumber" :account.accountNumber,
-            "ReceiverAccountNumber":payload.receipient,
+            "ReceiverAccountNumber":payload.recipient,
             "ReceiverAccountType":"",
             "ReceiverBankCode":payload.bankcode,
             "ReceiverPhoneNumber":"",
-            "ReceiverName":payload.receipientName,
+            "ReceiverName":payload.recipientName,
             "ReceiverBVN":"",
             "ReceiverKYC":"",
-            "Narration":f"USSD-TRF/{transactionReference}/{payload.receipientName}:{payload.receipient[-6:]}",
+            "Narration":f"USSD-TRF/{transactionReference}/{payload.recipientName}:{payload.recipient[-6:]}",
             "TransactionReference":transactionReference,
             "NIPSessionID":"",}
         debitAccount = await externalService.accountTransferInterByBankOne(setting=setting,params=params)

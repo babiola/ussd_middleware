@@ -45,3 +45,7 @@ def get_single_biller_by_billerId(db: Session, billerId: str):
     return db.query(ProductTypeModel).filter(ProductTypeModel.billerId == billerId).first()
 def getProviderByProduct(db: Session, providerId: int):
     return db.query(ServiceProviderModel).filter(ServiceProviderModel.id == providerId).first()
+def getTransactionById(db: Session, transactionId: int):
+    return db.query(TransactionModel).filter(TransactionModel.id == transactionId).first()
+def getPackageByPackageCode(db: Session, packageId: str):
+    return db.query(PackageModel).filter(PackageModel.productId == packageId).first()

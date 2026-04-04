@@ -31,7 +31,6 @@ router = APIRouter(prefix="/product"
 )
 async def buy_airtime(
     payload: BillPaymentRequest,
-    request: Request,
     response: Response,
     user: Annotated[Admin, Depends(authenticate_user)],
     setting: Annotated[Setting, Depends(getSystemSetting)],
@@ -40,7 +39,10 @@ async def buy_airtime(
     background_task: BackgroundTasks,
 ):
     try:
-        return await productservices.buyAirtime(db=db,request=request,payload=payload,response=response,setting=setting,account=account,background_task=background_task,)
+        if user:
+            return await productservices.buyAirtime(db=db,payload=payload,response=response,setting=setting,account=account,background_task=background_task,)
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INVALIDACCOUNT,)
     except Exception as ex:
         logger.error(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
@@ -55,7 +57,6 @@ async def buy_airtime(
 )
 async def buy_data_plan(
     payload: BillPaymentRequest,
-    request: Request,
     response: Response,
     user: Annotated[Admin, Depends(authenticate_user)],
     setting: Annotated[Setting, Depends(getSystemSetting)],
@@ -67,7 +68,6 @@ async def buy_data_plan(
         if user:
             return await productservices.buyDataPlan(
                 db=db,
-                request=request,
                 payload=payload,
                 response=response,
                 setting=setting,
@@ -180,7 +180,6 @@ async def biller_name_enquiry(
     response_model_exclude_unset=True)
 async def biller_payment(
     payload: BillPaymentRequest,
-    request: Request,
     response: Response,
     user: Annotated[Admin, Depends(authenticate_user)],
     account:Annotated[AccountModel, Depends(validateTransactionPIN)],
@@ -190,7 +189,7 @@ async def biller_payment(
 ):
     try:
         if user:
-            return await productservices.billPayment(payload=payload,request=request,response=response,setting=setting,db=db,user=user,background_task=background_task)
+            return await productservices.billPayment(payload=payload,response=response,setting=setting,db=db,account=account,background_task=background_task)
         response.status_code = status.HTTP_400_BAD_REQUEST
         return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INVALIDACCOUNT,)
     except Exception as ex:

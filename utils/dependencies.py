@@ -74,8 +74,8 @@ async def validateTransactionPIN1(
                         logger.info(f"checking if customer ussd enrollment status with account {payload.accountNumber}")
                         if account.customer.active:
                             logger.info(f"checking if customer active status with account {payload.accountNumber}")
-                            if util.formatPhoneFull(payload.receipient) == util.formatPhoneFull(account.customer.phonenumber):
-                                logger.info(f"checking if receipient phone number matches with account {payload.accountNumber}")
+                            if util.formatPhoneFull(payload.recipient) == util.formatPhoneFull(account.customer.phonenumber):
+                                logger.info(f"checking if recipient phone number matches with account {payload.accountNumber}")
                                 return account
                             pintries = await redisUtil.get_cache(key=f"account:{payload.msisdn}")
                             logger.info(f"pintries for account {payload.msisdn} is {pintries}")
@@ -140,7 +140,7 @@ async def validateTransactionPIN(
                 error={"statusCode": str(status.HTTP_404_NOT_FOUND), "statusDescription": INACTIVE}
             )
 
-        if util.formatPhoneFull(payload.receipient) == util.formatPhoneFull(customer.phonenumber):
+        if util.formatPhoneFull(payload.recipient) == util.formatPhoneFull(customer.phonenumber):
             return account
 
         pintries_key = f"account:{payload.msisdn}"

@@ -219,25 +219,28 @@ async def debitAccountByBankOne(setting: Setting,params: dict = None):
         logger.info(f"started debit with BankOne")
         params["Token"] = setting.bankone_token
         bankOneResponse = util.http(url=f"{setting.bankone_url}thirdpartyapiservice/apiservice/CoreTransactions/Debit",params=params)
+        resp = bankOneResponse.json()
         if bankOneResponse.status_code == 200:
-            resp = bankOneResponse.json()
             if resp["IsSuccessful"] is True and resp["ResponseCode"] =="00":
                  response["statuscode"] = str(bankOneResponse.status_code)
                  response["message"] = resp["ResponseMessage"]
                  response["data"] = resp["Reference"]
             elif resp["ResponseCode"] in ["91","06"]:
-                 response["statuscode"] = str(bankOneResponse.status_code)
+                 response["statuscode"] = "V00"
                  response["message"] = resp["ResponseMessage"]
                  response["data"] = resp["Reference"]
+            elif resp["ResponseCode"] == "12":
+                 response["statuscode"] = "A00"
+                 response["message"] = resp["ResponseMessage"]
             else:
-                response["statuscode"] = "400"
+                response["statuscode"] = "C13"
                 response["message"] = resp["ResponseMessage"]
         else:
-            response["statuscode"] = str(bankOneResponse.status_code)
-            response["message"] = SYSTEMBUSY
+            response["statuscode"] = "C13"
+            response["message"] = resp["statusDescription"]
     except Exception as ex:
         logger.info(ex)
-        response["statuscode"] = "500"
+        response["statuscode"] = "C001"
         response["message"] = PENDING
     return response
 async def accountTransferIntraByBankOne(setting: Setting,params: dict = None):
@@ -578,6 +581,120 @@ async def billEnquriesService(setting: Setting,biller:ProductTypeModel, servicep
         jsonresponse = res.json()
         if res.status_code == 200:
             if jsonresponse['statusCode'] in ["00","C001"]:
+                response["statuscode"] = "200"
+                response["message"] = SUCCESS
+                response["data"] = jsonresponse
+            else:
+                response["statuscode"] = "400"
+                response["message"] = "failed"
+        else:
+            response["statuscode"] = "400"
+            response["message"] = SYSTEMBUSY
+    except Exception as ex:
+        logger.info(ex)
+        response["statuscode"] = "500"
+        response["message"] = SYSTEMBUSY
+    return response
+async def purchaseServiceNew(setting: Setting,biller:ProductTypeModel, serviceprovider:ServiceProviderModel,payload: dict = None):
+    response = {}
+    try:
+        logger.info(f"started sending request to {serviceprovider.provider_name} {payload} at {datetime.now()}")
+        serviceEndpoint = ""
+        params = {}
+        if serviceprovider.provider_code == 'INSURTECHIT':
+            params['key'] = serviceprovider.service_key
+            params['loginId'] =  serviceprovider.login_id
+            if str(biller.billerType).lower() == 'airtime':
+                params['AccountNumbers'] = payload['accountNo']
+                params['phoneNo'] = payload['recipient']
+                params['serviceId'] = payload['serviceId']
+                params['recipient'] = payload['recipient']
+                params['amount'] = payload['amount']
+                params['requestId'] = payload['requestId']
+                params['accountNo'] = payload['accountNo']
+                params['channelCode'] = payload['channelCode']
+                params['operator'] = payload['operator']
+                params['date'] = payload['date']
+                serviceEndpoint = 'airtime-topup'
+                params['checksum'] = util.getSignature(json.dumps(params, sort_keys=True, separators=(',', ':'), default=str),serviceprovider.service_secret)
+            elif str(biller.billerType).lower() == 'data':
+                params['AccountNumbers'] = payload['accountNo']
+                params['phoneNo'] = payload['recipient']
+                params['serviceId'] = payload['serviceId']
+                params['recipient'] = payload['recipient']
+                params['amount'] = payload['amount']
+                params['requestId'] = payload['requestId']
+                params['accountNo'] = payload['accountNo']
+                params['channelCode'] = payload['channelCode']
+                params['operator'] = payload['operator']
+                params['date'] = payload['date']
+                params['productId'] = payload['packageId']
+                params['initiatorId'] = payload['accountNo']
+                serviceEndpoint = 'data-vend'
+                params['checksum'] = util.getSignature(json.dumps(params, sort_keys=True, separators=(',', ':'), default=str),serviceprovider.service_secret)
+            elif str(biller.billerType).lower() == 'cable':
+                params['renew'] = True
+                params['channelCode'] = payload['channelCode']
+                params['serviceId'] = payload['serviceId']
+                params['customerId'] = payload['recipient']
+                params['phoneNumber'] = payload['recipient']
+                params['productId'] = payload['productId']
+                params['customerName'] = payload['customerName']
+                params['address'] = payload['customerAddress']
+                params['requestId'] = payload['requestId']
+                params['amount'] = payload['amount']
+                params['accountNo'] = payload['accountNo']
+                serviceEndpoint = 'bill/payment'
+                params['checksum'] = util.getSignature(json.dumps(params, sort_keys=True, separators=(',', ':'), default=str),serviceprovider.service_secret)
+            elif str(biller.billerType).lower() == 'utility':
+                params['renew'] = True
+                params['channelCode'] = payload['channelCode']
+                params['serviceId'] = payload['serviceId']
+                params['customerId'] = payload['recipient']
+                params['phoneNumber'] = payload['recipient']
+                params['productId'] = payload['productId']
+                params['customerName'] = payload['customerName']
+                params['address'] = payload['customerAddress']
+                params['requestId'] = payload['requestId']
+                params['amount'] = payload['amount']
+                params['accountNo'] = payload['accountNo']
+                serviceEndpoint = 'bill/payment'
+                params['checksum'] = util.getSignature(json.dumps(params, sort_keys=True, separators=(',', ':'), default=str),serviceprovider.service_secret)
+        res = util.http(url=f"{serviceprovider.provider_url}{serviceEndpoint}", params=params, method=serviceprovider.auth_method)
+        jsonresponse = res.json()
+        if res.status_code == 200:
+            if jsonresponse['statusCode'] == "00":
+                response["statuscode"] = "200"
+                response["message"] = SUCCESS
+                response["data"] = jsonresponse
+            elif jsonresponse['statusCode'] == "C001":
+                 response["statuscode"] = "C001"
+                 response["message"] = PENDING
+                 response["data"] = jsonresponse
+            else:
+                response["statuscode"] = "400"
+                response["message"] = "failed"
+        else:
+            response["statuscode"] = "400"
+            response["message"] = SYSTEMBUSY
+    except Exception as ex:
+        logger.info(ex)
+        response["statuscode"] = "C001"
+        response["message"] = SYSTEMBUSY
+    return response
+async def billEnquriesServiceNew(serviceprovider:ServiceProviderModel,params: dict = None):
+    response = {}
+    try:
+        logger.info(
+            f"started sending request to {serviceprovider.provider_name} at {datetime.now()}"
+        )
+        if serviceprovider.provider_code == 'INSURTECHIT':
+            params['key'] = serviceprovider.service_key
+            params['loginId'] =  serviceprovider.login_id
+        res = util.http(url=f'{serviceprovider.provider_url}bill/validate',params=params,method=serviceprovider.auth_method)
+        jsonresponse = res.json()
+        if res.status_code == 200:
+            if jsonresponse['statusCode'] == "00":
                 response["statuscode"] = "200"
                 response["message"] = SUCCESS
                 response["data"] = jsonresponse

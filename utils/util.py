@@ -1,13 +1,14 @@
 import requests
 import re
 import locale
-import binascii
+import hashlib
 from random import randint
 import uuid
 import logging
 import json
 import time
 import base64
+import ulid
 import bcrypt
 from typing import List
 from fastapi import Request
@@ -260,7 +261,10 @@ def mask_email(email):
 def generateId():
     return str(int(time.time()))
 
-
+def generateUniqueTransactionId(last_digits: str = None) -> str:
+    generatedUlid = ulid.new()
+    last_digits = last_digits or str(randint(10000, 99999))
+    return f"{generatedUlid}"
 def generateOTP():
     return str(randint(100000, 999999))
 
@@ -399,6 +403,11 @@ def decodeId(id:str):
     decoded_bytes = base64.b64decode(id)
     return decoded_bytes.decode('utf-8')
 
+def getSignature(payload: str, secret_key: str) -> str:
+    logger.info(f"this is the payload {payload} and this is the secret {secret_key}")
+    payload_with_secret = f"{payload}{secret_key}"
+    hash_bytes = hashlib.sha256(payload_with_secret.encode("utf-8")).hexdigest()
+    return hash_bytes
 @lru_cache()
 def get_setting():
     return AppSetting()
