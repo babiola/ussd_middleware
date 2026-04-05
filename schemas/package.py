@@ -1,8 +1,8 @@
-from typing import Optional, Union,List,model_validator
+from typing import Optional, Union,List
 from decimal import ROUND_HALF_UP, Decimal
 from datetime import datetime
 from sqlalchemy import func
-from pydantic import BaseModel
+from pydantic import BaseModel,model_validator
 from schemas.base import BaseResponse
 
 
