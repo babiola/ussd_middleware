@@ -6,7 +6,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 async def getProduts(db: Session):
-    return db.query(ProductModel).all()
+    return db.query(ProductModel).filter(ProductModel.enabledInline == True).all()
 async def getProdutsForUssd(db: Session):
     return db.query(ProductModel).all()
 def getProduct(db: Session, id: int):

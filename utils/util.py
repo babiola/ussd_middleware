@@ -262,7 +262,7 @@ def generateId():
     return str(int(time.time()))
 
 def generateUniqueTransactionId(last_digits: str = None) -> str:
-    generatedUlid = ulid.new()
+    generatedUlid = ulid.ulid()
     last_digits = last_digits or str(randint(10000, 99999))
     return f"{generatedUlid}"
 def generateOTP():

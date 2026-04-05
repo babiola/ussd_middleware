@@ -67,6 +67,7 @@ def run_product_updates(self):
                                             dbPackage = db.query(PackageModel).filter(PackageModel.productId == package["packageCode"]).first()
                                             if dbPackage:
                                                 dbPackage.short_description = package["short_description"]
+                                                dbPackage.product_type_id = existingProductType.id
                                                 dbPackage.databundle = package["description"]
                                                 dbPackage.validity = package["validity"]
                                                 dbPackage.amount = str(int(package["amount"])*100)
@@ -74,7 +75,16 @@ def run_product_updates(self):
                                                 dbPackage.updated_at = datetime.now()
                                                 db.commit()
                                             else:
-                                                newPackage = PackageModel(productId=package["packageCode"],short_description=package["short_description"],databundle=package["description"],validity=package["validity"],status=True,amount=str(int(package["amount"])*100),billerId=productType["billerId"])
+                                                newPackage = PackageModel(
+                                                    product_type_id=existingProductType.id,
+                                                    productId=package["packageCode"],
+                                                    short_description=package["short_description"],
+                                                    databundle=package["description"],
+                                                    validity=package["validity"],
+                                                    status=True,
+                                                    amount=str(int(package["amount"])*100),
+                                                    billerId=productType["billerId"]
+                                                )
                                                 db.add(newPackage)
                                                 db.commit()
                                     db.commit()
@@ -94,7 +104,16 @@ def run_product_updates(self):
                                     db.refresh(newProductType)
                                     if productType["hasPackages"] and productType["packages"]:
                                         for package in productType["packages"]:
-                                            newPackage = PackageModel(product_type_id=newProductType.id,short_description=package["short_description"],databundle=package["description"],validity=package["validity"],status=True,amount=str(int(package["amount"])*100),billerId=productType["billerId"],created_at=datetime.now())
+                                            newPackage = PackageModel(
+                                                product_type_id=newProductType.id,
+                                                short_description=package["short_description"],
+                                                databundle=package["description"],
+                                                validity=package["validity"],
+                                                status=True,
+                                                amount=str(int(package["amount"])*100),
+                                                billerId=productType["billerId"],
+                                                created_at=datetime.now()
+                                            )
                                             db.add(newPackage)
                                             db.commit()
             else:

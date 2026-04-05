@@ -20,7 +20,7 @@ celery_app.conf.update(
 celery_app.conf.beat_schedule = {
     "run-product-updates-every-60-seconds": {
         "task": "task.tasks.run_product_updates", 
-        "schedule": crontab(hour=0, minute=0),
+        "schedule": 60.0,
         "options": {"queue": "scheduled"},
     },
     "requery-pending-transactions": {
