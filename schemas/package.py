@@ -16,7 +16,7 @@ class PackageBase(BaseModel):
     def compute_kobo(self):
         if self.amount is not None:
             self.amount = int(
-                (self.amount / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                (int(self.amount) / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             )
         return self
     validity: Union[str, None] = None
