@@ -15,7 +15,7 @@ class PackageBase(BaseModel):
     @model_validator(mode="after")
     def compute_kobo(self):
         if self.amount is not None:
-            self.amount = str(int(self.amount) / 100)
+            self.amount = str(int(int(self.amount) / 100))
         return self
     validity: Union[str, None] = None
     productId: Union[str, None] = None
