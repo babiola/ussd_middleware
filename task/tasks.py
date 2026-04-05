@@ -66,6 +66,7 @@ def run_product_updates(self):
                                         for package in productType["packages"]:
                                             dbPackage = db.query(PackageModel).filter(PackageModel.productId == package["packageCode"]).first()
                                             if dbPackage:
+                                                dbPackage.productId = package["packageCode"]
                                                 dbPackage.short_description = package["short_description"]
                                                 dbPackage.product_type_id = existingProductType.id
                                                 dbPackage.databundle = package["description"]
@@ -106,6 +107,7 @@ def run_product_updates(self):
                                         for package in productType["packages"]:
                                             newPackage = PackageModel(
                                                 product_type_id=newProductType.id,
+                                                productId=package["packageCode"],
                                                 short_description=package["short_description"],
                                                 databundle=package["description"],
                                                 validity=package["validity"],

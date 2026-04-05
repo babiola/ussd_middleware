@@ -1,4 +1,5 @@
-from typing import Optional, Union,List
+from typing import Optional, Union,List,model_validator
+from decimal import ROUND_HALF_UP, Decimal
 from datetime import datetime
 from sqlalchemy import func
 from pydantic import BaseModel
@@ -11,6 +12,13 @@ class PackageBase(BaseModel):
     short_description: Union[str, None] = None
     databundle: Union[str, None] = None
     amount: Union[str, None] = None
+    @model_validator(mode="after")
+    def compute_kobo(self):
+        if self.amount is not None:
+            self.amount = int(
+                (self.amount / 100).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            )
+        return self
     validity: Union[str, None] = None
     productId: Union[str, None] = None
     hasValidity: Union[bool, None] = None
