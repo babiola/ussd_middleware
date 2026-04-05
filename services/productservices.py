@@ -213,7 +213,7 @@ async def billNameEnquiry(db:Session,payload:BillNameEnquiryRequest,response:Res
             if biller.service_provider:
                 logger.info(f"Provider {biller.service_provider.provider_name} has been configured for  {payload.recipient} at {datetime.now()}")
                 params ={"productId":payload.packageId,"customerId": payload.recipient,"serviceId" :str(biller.billerId)}
-                enquiry = await externalService.billEnquriesServiceNew(biller=biller,setting=setting,serviceprovider=biller.service_provider,params=params)
+                enquiry = await externalService.billEnquriesServiceNew(serviceprovider=biller.service_provider,params=params)
                 if enquiry['statuscode'] == str(status.HTTP_200_OK):
                     logger.info(f"Bill name enquiry successful for  {payload.recipient} at {datetime.now()}")
                     return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data={"customerName":enquiry['data']['customerName'],"customerAddress":enquiry['data']['customerAddress']})
