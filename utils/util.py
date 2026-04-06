@@ -1,8 +1,8 @@
-import requests
 import re
+import hmac
 import locale
 import hashlib
-from random import randint
+import requests
 import uuid
 import logging
 import json
@@ -11,10 +11,10 @@ import base64
 import ulid
 import bcrypt
 from typing import List
+from random import randint
 from fastapi import Request
 from functools import lru_cache
 from typing import Union
-
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordBearer
 from enum import Enum as PythonEnum
@@ -408,6 +408,14 @@ def getSignature(payload: str, secret_key: str) -> str:
     payload_with_secret = f"{payload}{secret_key}"
     hash_bytes = hashlib.sha256(payload_with_secret.encode("utf-8")).hexdigest()
     return hash_bytes
+def generate_checksum(data:dict, privatekey: str)->str:
+     logger.info(f"generate checksum for request {data} with {privatekey} at {datetime.now()}")
+     clean_data = {k: v for k, v in data.items() if v is not None}
+     serialized = json.dumps(clean_data, sort_keys=True, separators=(',', ':'),ensure_ascii=False).strip()
+     logger.info(f"This is the serialized data {serialized} at {datetime.now()}")
+     logger.info(f"Serialized payload (repr): {repr(serialized)}")
+     digest = hmac.new(privatekey.encode('utf-8'),serialized.encode('utf-8'), hashlib.sha256).digest()
+     return base64.b64encode(digest).decode('utf-8')
 @lru_cache()
 def get_setting():
     return AppSetting()
