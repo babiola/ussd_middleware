@@ -40,7 +40,7 @@ def requery_pending_transactions(self):
     finally:
         db.close()
 @celery_app.task(bind=True)
-async def run_product_updates(self):
+def run_product_updates(self):
     db = SessionLocal()
     try:
         provider = (db.query(ServiceProviderModel).filter(ServiceProviderModel.provider_code == "INSURTECHIT").first())
