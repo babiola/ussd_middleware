@@ -8,18 +8,20 @@ from sqlalchemy import desc,asc
 from utils import util
 from models.model import TransactionModel,ServiceProviderModel,ProductModel,ProductTypeModel,PackageModel
 from services.productservices import transactionRequery
+from utils.dependencies import getSystemSetting
 logger = logging.getLogger(__name__)
 
 @celery_app.task(bind=True)
 def requery_pending_transactions(self):
     db = SessionLocal()
+    setting= getSystemSetting()
     cutoff = datetime.now() - timedelta(minutes=10)
     try:
         txns = (db.query(TransactionModel).filter(TransactionModel.statusCode == "C001",TransactionModel.created_at <= cutoff).order_by(asc(TransactionModel.created_at)).with_for_update().limit(5).all() )
         for txn in txns:
             if txn.reference:
                 logger.info(f"Requerying transaction with reference {txn.reference} and status {txn.statusCode} for the time at {str(datetime.now())}")
-                response = transactionRequery(db=db,transaction=txn)
+                response = transactionRequery(db=db,transaction=txn,setting=setting)
                 if response.statusCode == "200":
                     txn.statusCode = response.statusCode
                     txn.statusMessage = response.statusDescription
