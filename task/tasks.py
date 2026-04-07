@@ -14,9 +14,9 @@ logger = logging.getLogger(__name__)
 @celery_app.task(bind=True)
 def requery_pending_transactions(self):
     db = SessionLocal()
-    setting= getSystemSetting()
     cutoff = datetime.now() - timedelta(minutes=10)
     try:
+        setting= getSystemSetting(db=db)
         txns = (db.query(TransactionModel).filter(TransactionModel.statusCode == "C001",TransactionModel.created_at <= cutoff).order_by(asc(TransactionModel.created_at)).with_for_update().limit(5).all() )
         for txn in txns:
             if txn.reference:
