@@ -321,7 +321,7 @@ async def routeBillToProvider(payload:BillPaymentRequest,transactionId:int,db:Se
         return PackagesResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)
     finally:
         db.close()
-async def transactionRequery(db: Session,transaction:TransactionModel,setting:Setting):
+def transactionRequery(db: Session,transaction:TransactionModel,setting:Setting):
     response = BaseResponse(statusCode= "C001",statusDescription= "Processing")
     logger.info(f"Started TSQ for transaction {transaction.recipient} with reference {transaction.reference} with status {transaction.statusCode} and created at {transaction.created_at}  at {str(datetime.now())}")
     try:
@@ -367,7 +367,7 @@ async def transactionRequery(db: Session,transaction:TransactionModel,setting:Se
                 response.statusDescription = TransactionStatusEnum.PENDING.value
         elif transaction.debitStatus == "V00":
             logger.info(f"Transaction {transaction.recipient} with reference {transaction.reference} has pending debit status for transaction ID {str(transaction.id)} at {datetime.now()}")
-            requeryResponse =await externalService.requeryDebitAccountByBankOne(setting=setting,params={"RetrievalReference": transaction.debitReference,"TransactionDate": transaction.created_at.strftime("%Y-%m-%dT%H:%M:%S"),"Amount": str(int(transaction.amount)*100),})
+            requeryResponse = externalService.requeryDebitAccountByBankOne(setting=setting,params={"RetrievalReference": transaction.debitReference,"TransactionDate": transaction.created_at.strftime("%Y-%m-%dT%H:%M:%S"),"Amount": str(int(transaction.amount)*100),})
             if requeryResponse['statuscode'] == str(status.HTTP_200_OK):
                 logger.info(f"Debit successful for  {transaction.recipient} with account {transaction.account.accountNumber} at {datetime.now()} for transaction ID {str(transaction.id)}")
                 transaction.debitStatus = "00"

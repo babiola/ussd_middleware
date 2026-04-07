@@ -243,7 +243,7 @@ async def debitAccountByBankOne(setting: Setting,params: dict = None):
         response["statuscode"] = "C001"
         response["message"] = PENDING
     return response
-async def requeryDebitAccountByBankOne(setting: Setting,params: dict = None):
+def requeryDebitAccountByBankOne(setting: Setting,params: dict = None):
     response = {
         "Provider":"BANKONE"
     }
