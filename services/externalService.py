@@ -616,7 +616,7 @@ async def purchaseServiceNew(setting: Setting,biller:ProductTypeModel, servicepr
                 params['operator'] = payload['operator']
                 params['date'] = payload['date']
                 serviceEndpoint = 'airtime-topup'
-                params['checksum'] = util.generate_checksum(json.dumps(params, sort_keys=True, separators=(',', ':'), default=str),serviceprovider.service_secret)
+                params['checksum'] = util.generate_checksum(params,serviceprovider.service_secret)
             elif str(biller.billerType).lower() == 'data':
                 params['AccountNumbers'] = payload['accountNo']
                 params['phoneNo'] = payload['recipient']
@@ -628,10 +628,10 @@ async def purchaseServiceNew(setting: Setting,biller:ProductTypeModel, servicepr
                 params['channelCode'] = payload['channelCode']
                 params['operator'] = payload['operator']
                 params['date'] = payload['date']
-                params['productId'] = payload['packageId']
+                params['productId'] = payload['productId']
                 params['initiatorId'] = payload['accountNo']
                 serviceEndpoint = 'data-vend'
-                params['checksum'] = util.generate_checksum(json.dumps(params, sort_keys=True, separators=(',', ':'), default=str),serviceprovider.service_secret)
+                params['checksum'] = util.generate_checksum(params,serviceprovider.service_secret)
             elif str(biller.billerType).lower() == 'cable':
                 params['renew'] = True
                 params['channelCode'] = payload['channelCode']
@@ -645,7 +645,7 @@ async def purchaseServiceNew(setting: Setting,biller:ProductTypeModel, servicepr
                 params['amount'] = payload['amount']
                 params['accountNo'] = payload['accountNo']
                 serviceEndpoint = 'bill/payment'
-                params['checksum'] = util.generate_checksum(json.dumps(params, sort_keys=True, separators=(',', ':'), default=str),serviceprovider.service_secret)
+                params['checksum'] = util.generate_checksum(params,serviceprovider.service_secret)
             elif str(biller.billerType).lower() == 'utility':
                 params['renew'] = True
                 params['channelCode'] = payload['channelCode']
@@ -659,7 +659,7 @@ async def purchaseServiceNew(setting: Setting,biller:ProductTypeModel, servicepr
                 params['amount'] = payload['amount']
                 params['accountNo'] = payload['accountNo']
                 serviceEndpoint = 'bill/payment'
-                params['checksum'] = util.generate_checksum(json.dumps(params, sort_keys=True, separators=(',', ':'), default=str),serviceprovider.service_secret)
+                params['checksum'] = util.generate_checksum(params,serviceprovider.service_secret)
         res = util.http(url=f"{serviceprovider.provider_url}{serviceEndpoint}", params=params, method=serviceprovider.auth_method)
         jsonresponse = res.json()
         if res.status_code == 200:
