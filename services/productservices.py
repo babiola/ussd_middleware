@@ -321,38 +321,86 @@ async def routeBillToProvider(payload:BillPaymentRequest,transactionId:int,db:Se
         return PackagesResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)
     finally:
         db.close()
-def transactionRequery(db: Session,transaction:TransactionModel):
+async def transactionRequery(db: Session,transaction:TransactionModel,setting:Setting):
     response = BaseResponse(statusCode= "C001",statusDescription= "Processing")
     logger.info(f"Started TSQ for transaction {transaction.recipient} with reference {transaction.reference} with status {transaction.statusCode} and created at {transaction.created_at}  at {str(datetime.now())}")
     try:
-        logger.info(f"Started Requerying for Past transactions {transaction.recipient} with status {transaction.statusCode} at transaction ID {str(transaction.id)}")
-        params={"loginId":transaction.provider.login_id,"key":transaction.provider.service_key,"requestId":transaction.reference}
-        res = util.http(url=f"{transaction.provider.provider_url}requery",params=params)
-        response = res.json()
-        if response:
-            if response["statusCode"] == "00":
-                logger.info(f"TSQ is still pending response for {util.formatPhone(msisdn=transaction.recipient)} with reference {transaction.reference}........ at {datetime.now()}")
-                transaction.statusCode = "200"
-                transaction.statusMessage = TransactionStatusEnum.SUCCESS.value
-                transaction.providerReference = response["tranxReference"]
-                transaction.providerStatus = response["statusCode"]
-                transaction.providerDescription = response["statusDescription"]
-                transaction.updated_at = datetime.now()
-                updatedTransaction = paymentQuery.create(db=db,model=transaction)
-                response.statusCode = "00"
-                response.statusDescription = TransactionStatusEnum.SUCCESS.value
-                return response
-            elif response["statusCode"] == "C13":
+        if transaction.debitStatus == "00":
+            logger.info(f"Started Requerying for Past transactions {transaction.recipient} with status {transaction.statusCode} at transaction ID {str(transaction.id)}")
+            params={"loginId":transaction.provider.login_id,"key":transaction.provider.service_key,"requestId":transaction.reference}
+            res = util.http(url=f"{transaction.provider.provider_url}requery",params=params)
+            requeryBillResponse = res.json()
+            if requeryBillResponse:
+                if requeryBillResponse["statuscode"] == "00":
+                    logger.info(f"TSQ is still pending response for {util.formatPhone(msisdn=transaction.recipient)} with reference {transaction.reference}........ at {datetime.now()}")
+                    transaction.statusCode = "200"
+                    transaction.statusMessage = TransactionStatusEnum.SUCCESS.value
+                    transaction.providerReference = response["tranxReference"]
+                    transaction.providerStatus = response["statusCode"]
+                    transaction.providerDescription = response["statusDescription"]
+                    transaction.updated_at = datetime.now()
+                    updatedTransaction = paymentQuery.create(db=db,model=transaction)
+                    response.statusCode = "00"
+                    response.statusDescription = TransactionStatusEnum.SUCCESS.value
+                    return response
+                elif requeryBillResponse["statuscode"] == "C001":
+                    logger.info(f"TSQ failed for {util.formatPhone(msisdn=transaction.recipient)} with reference {transaction.reference}........ at {datetime.now()}")
+                    transaction.statusCode = requeryBillResponse["statuscode"]
+                    transaction.statusMessage = requeryBillResponse["message"]
+                    transaction.providerStatus = requeryBillResponse["statuscode"]
+                    transaction.providerDescription = requeryBillResponse["message"]
+                    transaction.updated_at = datetime.now()
+                    response.statusCode = "C001"
+                    response.statusDescription =TransactionStatusEnum.PENDING.value
+                else:
+                    logger.info(f"TSQ failed for {util.formatPhone(msisdn=transaction.recipient)} with reference {transaction.reference}........ at {datetime.now()}")
+                    transaction.statusCode = requeryBillResponse["statuscode"]
+                    transaction.statusMessage = requeryBillResponse["message"]
+                    transaction.providerStatus = requeryBillResponse["statuscode"]
+                    transaction.providerDescription = requeryBillResponse["message"]
+                    transaction.updated_at = datetime.now()
+                    response.statusCode = requeryBillResponse["statuscode"]
+                    response.statusDescription = requeryBillResponse["message"]
+            else:
                 logger.info(f"TSQ failed for {util.formatPhone(msisdn=transaction.recipient)} with reference {transaction.reference}........ at {datetime.now()}")
-                transaction.statusCode = response["statusCode"]
-                transaction.statusMessage = response["statusDescription"]
-                transaction.providerStatus = response["statusCode"]
-                transaction.providerDescription = response["statusDescription"]
+                response.statusCode = "C001"
+                response.statusDescription = TransactionStatusEnum.PENDING.value
+        elif transaction.debitStatus == "V00":
+            logger.info(f"Transaction {transaction.recipient} with reference {transaction.reference} has pending debit status for transaction ID {str(transaction.id)} at {datetime.now()}")
+            requeryResponse = externalService.requeryDebitAccountByBankOne(setting=setting,params={"RetrievalReference": transaction.debitReference,"TransactionDate": transaction.created_at.strftime("%Y-%m-%dT%H:%M:%S"),"Amount": str(int(transaction.amount)*100),})
+            if requeryResponse['statuscode'] == str(status.HTTP_200_OK):
+                logger.info(f"Debit successful for  {transaction.recipient} with account {transaction.account.accountNumber} at {datetime.now()} for transaction ID {str(transaction.id)}")
+                transaction.debitStatus = "00"
+                transaction.debit_description = requeryResponse['message']
                 transaction.updated_at = datetime.now()
-                updatedTransaction = paymentQuery.create(db=db,model=transaction)
+            elif requeryResponse['statuscode'] == "V00":
+                logger.info(f"Debit still pending for  {transaction.recipient} with account {transaction.account.accountNumber} at {datetime.now()} for transaction ID {str(transaction.id)}")
+                transaction.debitStatus = "V00"
+                transaction.debit_description = requeryResponse['message']
+                transaction.updated_at = datetime.now()
+                response.statusCode = "V00"
+                response.statusDescription = PENDING
+            else:
+                logger.info(f"Debit failed for  {transaction.recipient} with account {transaction.account.accountNumber} at {datetime.now()} for transaction ID {str(transaction.id)}")
+                transaction.statusCode = "C13"
+                transaction.statusMessage = TransactionStatusEnum.FAILED.value
+                transaction.debitStatus = "C13"
+                transaction.debit_description = requeryResponse['message']
+                transaction.providerStatus = "C13"
+                transaction.providerDescription = "Transaction failed due to unsuccessful debit"
+                transaction.updated_at = datetime.now()
                 response.statusCode = "C13"
-                response.statusDescription =TransactionStatusEnum.FAILED.value
-                return response
+                response.statusDescription = TransactionStatusEnum.FAILED.value
+        else:
+            logger.info(f"Transaction {transaction.recipient} with reference {transaction.reference} has debit status {transaction.debitStatus} for transaction ID {str(transaction.id)} at {datetime.now()}")
+            transaction.statusCode = "C13"
+            transaction.statusMessage = TransactionStatusEnum.FAILED.value
+            transaction.providerStatus = "C13"
+            transaction.providerDescription = "Transaction failed due to unsuccessful debit"
+            transaction.updated_at = datetime.now()
+            response.statusCode = "C13"
+            response.statusDescription = TransactionStatusEnum.FAILED.value
     except Exception as ex:
         logger.info(f"Error requerying transactions {transaction.recipient} at {str(datetime.now())} with message {str(ex)}")
+    paymentQuery.create(db=db,model=transaction)
     return response

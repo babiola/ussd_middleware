@@ -25,7 +25,7 @@ celery_app.conf.beat_schedule = {
     "requery-pending-transactions": {
         "task": "task.tasks.requery_pending_transactions",
         "schedule": 120.0,
-        "options": {"queue": "requery"},
+        #"options": {"queue": "requery"},
     },
 }
 celery_app.autodiscover_tasks(["task"])

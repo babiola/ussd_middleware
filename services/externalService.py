@@ -243,6 +243,38 @@ async def debitAccountByBankOne(setting: Setting,params: dict = None):
         response["statuscode"] = "C001"
         response["message"] = PENDING
     return response
+async def requeryDebitAccountByBankOne(setting: Setting,params: dict = None):
+    response = {
+        "Provider":"BANKONE"
+    }
+    try:
+        logger.info(f"started requery debit with BankOne")
+        params["Token"] = setting.bankone_token
+        bankOneResponse = util.http(url=f"{setting.bankone_url}thirdpartyapiservice/apiservice/CoreTransactions/TransactionStatusQuery",params=params)
+        resp = bankOneResponse.json()
+        if bankOneResponse.status_code == 200:
+            if resp["IsSuccessful"] is True and resp["ResponseCode"] =="00":
+                 response["statuscode"] = str(bankOneResponse.status_code)
+                 response["message"] = resp["ResponseMessage"]
+                 response["data"] = resp["Reference"]
+            elif resp["ResponseCode"] in ["91","06"]:
+                 response["statuscode"] = "V00"
+                 response["message"] = resp["ResponseMessage"]
+                 response["data"] = resp["Reference"]
+            elif resp["ResponseCode"] == "12":
+                 response["statuscode"] = "A00"
+                 response["message"] = resp["ResponseMessage"]
+            else:
+                response["statuscode"] = "C13"
+                response["message"] = resp["ResponseMessage"]
+        else:
+            response["statuscode"] = "C13"
+            response["message"] = resp["statusDescription"]
+    except Exception as ex:
+        logger.info(ex)
+        response["statuscode"] = "C001"
+        response["message"] = PENDING
+    return response
 async def accountTransferIntraByBankOne(setting: Setting,params: dict = None):
     response = {}
     try:
@@ -666,7 +698,7 @@ async def purchaseServiceNew(setting: Setting,biller:ProductTypeModel, servicepr
             if jsonresponse['statusCode'] == "00":
                 response["statuscode"] = "200"
                 response["message"] = SUCCESS
-                response["data"] = jsonresponse
+                response["data"] = jsonresponse["data"] if "data" in jsonresponse else jsonresponse
             elif jsonresponse['statusCode'] == "C001":
                  response["statuscode"] = "C001"
                  response["message"] = PENDING
