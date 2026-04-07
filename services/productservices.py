@@ -367,7 +367,7 @@ async def transactionRequery(db: Session,transaction:TransactionModel,setting:Se
                 response.statusDescription = TransactionStatusEnum.PENDING.value
         elif transaction.debitStatus == "V00":
             logger.info(f"Transaction {transaction.recipient} with reference {transaction.reference} has pending debit status for transaction ID {str(transaction.id)} at {datetime.now()}")
-            requeryResponse = externalService.requeryDebitAccountByBankOne(setting=setting,params={"RetrievalReference": transaction.debitReference,"TransactionDate": transaction.created_at.strftime("%Y-%m-%dT%H:%M:%S"),"Amount": str(int(transaction.amount)*100),})
+            requeryResponse =await externalService.requeryDebitAccountByBankOne(setting=setting,params={"RetrievalReference": transaction.debitReference,"TransactionDate": transaction.created_at.strftime("%Y-%m-%dT%H:%M:%S"),"Amount": str(int(transaction.amount)*100),})
             if requeryResponse['statuscode'] == str(status.HTTP_200_OK):
                 logger.info(f"Debit successful for  {transaction.recipient} with account {transaction.account.accountNumber} at {datetime.now()} for transaction ID {str(transaction.id)}")
                 transaction.debitStatus = "00"

@@ -12,7 +12,7 @@ from utils.dependencies import getSystemSetting
 logger = logging.getLogger(__name__)
 
 @celery_app.task(bind=True)
-def requery_pending_transactions(self):
+async def requery_pending_transactions(self):
     db = SessionLocal()
     cutoff = datetime.now() - timedelta(minutes=10)
     try:
@@ -21,7 +21,7 @@ def requery_pending_transactions(self):
         for txn in txns:
             if txn.reference:
                 logger.info(f"Requerying transaction with reference {txn.reference} and status {txn.statusCode} for the time at {str(datetime.now())}")
-                response = transactionRequery(db=db,transaction=txn,setting=setting)
+                response =await transactionRequery(db=db,transaction=txn,setting=setting)
                 if response.statusCode == "200":
                     txn.statusCode = response.statusCode
                     txn.statusMessage = response.statusDescription
@@ -40,7 +40,7 @@ def requery_pending_transactions(self):
     finally:
         db.close()
 @celery_app.task(bind=True)
-def run_product_updates(self):
+async def run_product_updates(self):
     db = SessionLocal()
     try:
         provider = (db.query(ServiceProviderModel).filter(ServiceProviderModel.provider_code == "INSURTECHIT").first())
