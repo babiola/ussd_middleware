@@ -69,7 +69,7 @@ def run_product_updates(self):
                                             dbPackage = db.query(PackageModel).filter(PackageModel.productId == package["packageCode"]).first()
                                             if dbPackage:
                                                 dbPackage.productId = package["packageCode"]
-                                                dbPackage.short_description = package["short_description"].replace(f"{dbPackage.billerId} ", "")
+                                                dbPackage.short_description = package["short_description"].replace("DStv ", "").replace("GOtv ", "")
                                                 dbPackage.product_type_id = existingProductType.id
                                                 dbPackage.databundle = package["description"]
                                                 dbPackage.validity = package["validity"]
@@ -81,7 +81,7 @@ def run_product_updates(self):
                                                 newPackage = PackageModel(
                                                     product_type_id=existingProductType.id,
                                                     productId=package["packageCode"],
-                                                    short_description=package["short_description"].replace(f"{productType["billerId"]} ", ""),
+                                                    short_description=package["short_description"].replace("DStv ", "").replace("GOtv ", ""),
                                                     databundle=package["description"],
                                                     validity=package["validity"],
                                                     status=True,
