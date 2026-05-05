@@ -678,7 +678,7 @@ async def purchaseServiceNew(setting: Setting,biller:ProductTypeModel, servicepr
                 params['accountNo'] = payload['accountNo']
                 serviceEndpoint = 'bill/payment'
                 params['checksum'] = util.generate_checksum(params,serviceprovider.service_secret)
-            elif str(biller.billerType).lower() == 'utility':
+            elif str(biller.billerType).lower() == 'electricity':
                 params['renew'] = True
                 params['channelCode'] = payload['channelCode']
                 params['serviceId'] = payload['serviceId']
