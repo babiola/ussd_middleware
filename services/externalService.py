@@ -681,7 +681,7 @@ async def purchaseServiceNew(setting: Setting,biller:ProductTypeModel, servicepr
             elif str(biller.billerType).lower() == 'electricity':
                 params['renew'] = True
                 params['channelCode'] = payload['channelCode']
-                params['serviceId'] = payload['serviceId']
+                params['serviceId'] = payload['serviceId'].lower()
                 params['customerId'] = payload['recipient']
                 params['phoneNumber'] = payload['recipient']
                 params['productId'] = payload['productId']
