@@ -707,8 +707,8 @@ async def purchaseServiceNew(setting: Setting,biller:ProductTypeModel, servicepr
                 response["statuscode"] = "400"
                 response["message"] = "failed"
         else:
-            response["statuscode"] = "400"
-            response["message"] = SYSTEMBUSY
+            response["statuscode"] = jsonresponse['statusCode']
+            response["message"] = jsonresponse['statusDescription']
     except Exception as ex:
         logger.info(ex)
         response["statuscode"] = "C001"

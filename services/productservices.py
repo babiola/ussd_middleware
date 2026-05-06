@@ -325,7 +325,7 @@ def transactionRequery(db: Session,transaction:TransactionModel,setting:Setting)
     response = BaseResponse(statusCode= "C001",statusDescription= "Processing")
     logger.info(f"Started TSQ for transaction {transaction.recipient} with reference {transaction.reference} with status {transaction.statusCode} and created at {transaction.created_at}  at {str(datetime.now())}")
     try:
-        if transaction.debitStatus == "00":
+        if transaction.debitStatus == "200":
             logger.info(f"Started Requerying for Past transactions {transaction.recipient} with status {transaction.statusCode} at transaction ID {str(transaction.id)}")
             params={"loginId":transaction.provider.login_id,"key":transaction.provider.service_key,"requestId":transaction.reference}
             res = util.http(url=f"{transaction.provider.provider_url}requery",params=params)
