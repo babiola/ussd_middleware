@@ -343,7 +343,7 @@ async def transactionRequery(db: Session,transaction:TransactionModel,setting:Se
                         if requeryBillResponse["data"]["token"]:
                             transaction.token = requeryBillResponse["data"]["token"]
                             transaction.configureToken = requeryBillResponse["data"]["configureToken"]
-                            transaction.unit = requeryBillResponse["data"]["unit"]
+                            transaction.unit = requeryBillResponse["data"]["units"]
                             transaction.unitType = requeryBillResponse["data"]["unitType"]
                             transaction.customerAddress = requeryBillResponse["data"]["customerAddress"]
                             transaction.customerName = requeryBillResponse["data"]["customerName"]
