@@ -335,18 +335,18 @@ async def transactionRequery(db: Session,transaction:TransactionModel,setting:Se
                     logger.info(f"TSQ is still pending response for {util.formatPhone(msisdn=transaction.recipient)} with reference {transaction.reference}........ at {datetime.now()}")
                     transaction.statusCode = "200"
                     transaction.statusMessage = TransactionStatusEnum.SUCCESS.value
-                    transaction.providerStatus = response["statusCode"]
-                    transaction.providerDescription = response["statusDescription"]
+                    transaction.providerStatus = requeryBillResponse["statusCode"]
+                    transaction.providerDescription = requeryBillResponse["statusDescription"]
                     transaction.updated_at = datetime.now()
-                    if response["data"]:
-                        transaction.providerReference = response["data"]["confirmCode"]
-                        if response["data"]["token"]:
-                            transaction.token = response["data"]["token"]
-                            transaction.configureToken = response["data"]["configureToken"]
-                            transaction.unit = response["data"]["unit"]
-                            transaction.unitType = response["data"]["unitType"]
-                            transaction.customerAddress = response["data"]["customerAddress"]
-                            transaction.customerName = response["data"]["customerName"]
+                    if requeryBillResponse["data"]:
+                        transaction.providerReference = requeryBillResponse["data"]["confirmCode"]
+                        if requeryBillResponse["data"]["token"]:
+                            transaction.token = requeryBillResponse["data"]["token"]
+                            transaction.configureToken = requeryBillResponse["data"]["configureToken"]
+                            transaction.unit = requeryBillResponse["data"]["unit"]
+                            transaction.unitType = requeryBillResponse["data"]["unitType"]
+                            transaction.customerAddress = requeryBillResponse["data"]["customerAddress"]
+                            transaction.customerName = requeryBillResponse["data"]["customerName"]
                             message=f"Your {transaction.product_type.billerName} purchase was successful. Token {transaction.token}. Thank you for choosing Rayyan MFB. Dial *5113*amount# to buy airtime."
                             paramsMsg =[{'AccountNumber':transaction.account.accountNumber,'To':util.formatPhoneFull(transaction.customer.phonenumber),"AccountId": transaction.account.customerNumber,'Body':message,'ReferenceNo':util.generateUniqueId()}]
                             await externalService.sendSms(setting=setting,params=paramsMsg)
