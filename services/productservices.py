@@ -321,7 +321,7 @@ async def routeBillToProvider(payload:BillPaymentRequest,transactionId:int,db:Se
         return PackagesResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)
     finally:
         db.close()
-def transactionRequery(db: Session,transaction:TransactionModel,setting:Setting):
+async def transactionRequery(db: Session,transaction:TransactionModel,setting:Setting):
     response = BaseResponse(statusCode= "C001",statusDescription= "Processing")
     logger.info(f"Started TSQ for transaction {transaction.recipient} with reference {transaction.reference} with status {transaction.statusCode} and created at {transaction.created_at}  at {str(datetime.now())}")
     try:
@@ -331,36 +331,47 @@ def transactionRequery(db: Session,transaction:TransactionModel,setting:Setting)
             res = util.http(url=f"{transaction.provider.provider_url}requery",params=params)
             requeryBillResponse = res.json()
             if requeryBillResponse:
-                if requeryBillResponse["statuscode"] == "00":
+                if requeryBillResponse["statusCode"] == "00":
                     logger.info(f"TSQ is still pending response for {util.formatPhone(msisdn=transaction.recipient)} with reference {transaction.reference}........ at {datetime.now()}")
                     transaction.statusCode = "200"
                     transaction.statusMessage = TransactionStatusEnum.SUCCESS.value
-                    transaction.providerReference = response["tranxReference"]
                     transaction.providerStatus = response["statusCode"]
                     transaction.providerDescription = response["statusDescription"]
                     transaction.updated_at = datetime.now()
+                    if response["data"]:
+                        transaction.providerReference = response["data"]["confirmCode"]
+                        if response["data"]["token"]:
+                            transaction.token = response["data"]["token"]
+                            transaction.configureToken = response["data"]["configureToken"]
+                            transaction.unit = response["data"]["unit"]
+                            transaction.unitType = response["data"]["unitType"]
+                            transaction.customerAddress = response["data"]["customerAddress"]
+                            transaction.customerName = response["data"]["customerName"]
+                            message=f"Your {transaction.product_type.billerName} purchase was successful. Token {transaction.token}. Thank you for choosing Rayyan MFB. Dial *5113*amount# to buy airtime."
+                            paramsMsg =[{'AccountNumber':transaction.account.accountNumber,'To':util.formatPhoneFull(transaction.customer.phonenumber),"AccountId": transaction.account.customerNumber,'Body':message,'ReferenceNo':util.generateUniqueId()}]
+                            await externalService.sendSms(setting=setting,params=paramsMsg)
                     updatedTransaction = paymentQuery.create(db=db,model=transaction)
                     response.statusCode = "00"
                     response.statusDescription = TransactionStatusEnum.SUCCESS.value
                     return response
-                elif requeryBillResponse["statuscode"] == "C001":
+                elif requeryBillResponse["statusCode"] == "C001":
                     logger.info(f"TSQ failed for {util.formatPhone(msisdn=transaction.recipient)} with reference {transaction.reference}........ at {datetime.now()}")
-                    transaction.statusCode = requeryBillResponse["statuscode"]
-                    transaction.statusMessage = requeryBillResponse["message"]
-                    transaction.providerStatus = requeryBillResponse["statuscode"]
-                    transaction.providerDescription = requeryBillResponse["message"]
+                    transaction.statusCode = requeryBillResponse["statusCode"]
+                    transaction.statusMessage = requeryBillResponse["statusDescription"]
+                    transaction.providerStatus = requeryBillResponse["statusCode"]
+                    transaction.providerDescription = requeryBillResponse["statusDescription"]
                     transaction.updated_at = datetime.now()
                     response.statusCode = "C001"
                     response.statusDescription =TransactionStatusEnum.PENDING.value
                 else:
                     logger.info(f"TSQ failed for {util.formatPhone(msisdn=transaction.recipient)} with reference {transaction.reference}........ at {datetime.now()}")
-                    transaction.statusCode = requeryBillResponse["statuscode"]
-                    transaction.statusMessage = requeryBillResponse["message"]
-                    transaction.providerStatus = requeryBillResponse["statuscode"]
-                    transaction.providerDescription = requeryBillResponse["message"]
+                    transaction.statusCode = requeryBillResponse["statusCode"]
+                    transaction.statusMessage = requeryBillResponse["statusDescription"]
+                    transaction.providerStatus = requeryBillResponse["statusCode"]
+                    transaction.providerDescription = requeryBillResponse["statusDescription"]
                     transaction.updated_at = datetime.now()
-                    response.statusCode = requeryBillResponse["statuscode"]
-                    response.statusDescription = requeryBillResponse["message"]
+                    response.statusCode = requeryBillResponse["statusCode"]
+                    response.statusDescription = requeryBillResponse["statusDescription"]
             else:
                 logger.info(f"TSQ failed for {util.formatPhone(msisdn=transaction.recipient)} with reference {transaction.reference}........ at {datetime.now()}")
                 response.statusCode = "C001"

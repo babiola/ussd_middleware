@@ -1,6 +1,6 @@
 
 import logging
-
+import asyncio
 from task.celery_app import celery_app
 from datetime import datetime, timedelta
 from utils.database import SessionLocal
@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 
 @celery_app.task(bind=True)
 def requery_pending_transactions(self):
+    asyncio.run(_requery_pending(self))
+async def _requery_pending(self):
     db = SessionLocal()
     cutoff = datetime.now() - timedelta(minutes=10)
     try:
@@ -21,8 +23,8 @@ def requery_pending_transactions(self):
         for txn in txns:
             if txn.reference:
                 logger.info(f"Requerying transaction with reference {txn.reference} and status {txn.statusCode} for the time at {str(datetime.now())}")
-                response = transactionRequery(db=db,transaction=txn,setting=setting)
-                if response.statusCode == "200":
+                response = await transactionRequery(db=db,transaction=txn,setting=setting)
+                if response.statusCode == "00":
                     txn.statusCode = response.statusCode
                     txn.statusMessage = response.statusDescription
                 else:
