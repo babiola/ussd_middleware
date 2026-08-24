@@ -8,7 +8,7 @@ from fastapi import (
 )
 from models.model import AccountModel
 from schemas.customer import CustomerResponse, Customer
-from schemas.base import BaseResponse, BvnRequest, OpenAccountRequest,EnrolAccountRequest
+from schemas.base import BaseResponse, BvnRequest, OpenAccountRequest,EnrolAccountRequest,CardsAccountRequest
 from schemas.admin import Admin
 from schemas.setting import Setting
 from models.model import AccountLevelEnum
@@ -332,6 +332,35 @@ async def delete_customer(
                 statusCode=str(status.HTTP_400_BAD_REQUEST),
                 statusDescription=INVALIDACCOUNT,
             )
+    except Exception as ex:
+        logger.error(ex)
+        responses.status_code = status.HTTP_400_BAD_REQUEST
+        return BaseResponse(
+            statusCode=str(status.HTTP_400_BAD_REQUEST),
+            statusDescription=SYSTEMBUSY,
+        )
+@router.post(
+    "/cards",
+    response_model=BaseResponse,
+    response_model_exclude_unset=True,
+)
+async def get_customer_cards_account(
+    payload:CardsAccountRequest,
+    responses: Response,
+    user: Annotated[Customer, Depends(authenticate_user)],
+    setting: Annotated[Setting, Depends(getSystemSetting)],
+    db: Annotated[Session, Depends(get_db)],
+):
+    try:
+        if user:
+            return customerservice.get_cards_account(
+                payload=payload,
+                response=responses,
+                setting=setting,
+                db=db,
+            )
+        responses.status_code = status.HTTP_400_BAD_REQUEST
+        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INVALIDACCOUNT, )
     except Exception as ex:
         logger.error(ex)
         responses.status_code = status.HTTP_400_BAD_REQUEST

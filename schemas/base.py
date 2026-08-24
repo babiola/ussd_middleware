@@ -78,3 +78,8 @@ class BillPaymentRequest(PINRequest):
         return formattedAmount
     customerAddress:Optional[str]= None
     customerName:Optional[str] = None
+class CardsAccountRequest(BaseModel):
+    accountNumber: str
+    msisdn: str
+    telco:str
+    sessionId:str

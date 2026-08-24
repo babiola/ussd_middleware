@@ -149,6 +149,35 @@ async def accountBalance(account:str,setting: Setting):
         response["statuscode"] = "500"
         response["message"] = SYSTEMBUSY
     return response
+async def getCustomerCards(account:str,setting: Setting):
+    response = {}
+    try:
+        logger.info(
+            f"started cards enquiry for {account} with BankOne"
+        )
+        params = {
+                "Token": setting.bankone_token,
+                "AccountNo": account,
+                "IncludeInactiveCards": False
+                }
+        res = util.http(url=f"{setting.bankone_url}thirdpartyapiservice/apiservice/Cards/RetrieveCustomerCards",params=params)
+        resp = res.json()
+        if res.status_code == 200:
+            if resp["IsSuccessful"] is True:
+                response["statuscode"] = str(res.status_code)
+                response["message"] = SUCCESS
+                response["data"] = resp["Cards"]
+            else:
+                response["statuscode"] = "400"
+                response["message"] = resp["ResponseDescription"]
+        else:
+            response["statuscode"] = "400"
+            response["message"] = resp["ResponseDescription"]
+    except Exception as ex:
+        logger.info(ex)
+        response["statuscode"] = "500"
+        response["message"] = SYSTEMBUSY
+    return response
 async def accountEnquiryInterByBankOne(setting: Setting,params: dict = None):
     response = {}
     try:

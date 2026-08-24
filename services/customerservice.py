@@ -9,7 +9,7 @@ from utils import util
 from schemas.setting import Setting
 from utils.constant import *
 from schemas.customer import *
-from schemas.base import BaseResponse, BvnRequest, OpenAccountRequest,EnrolAccountRequest
+from schemas.base import BaseResponse, BvnRequest, OpenAccountRequest,EnrolAccountRequest,CardsAccountRequest
 from services import externalService
 from utils import redisUtil
 from fastapi import (
@@ -263,6 +263,26 @@ async def balance(account:AccountModel,request: Request,response: Response,setti
         else:
             response.status_code = status.HTTP_400_BAD_REQUEST
             return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=BALANCEERROR)
+    except Exception as ex:
+        logger.info(ex)
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST), statusDescription=SYSTEMBUSY,)
+async def get_cards_account(payload:CardsAccountRequest,response: Response,setting: Setting,db: Session):
+    try:
+        account = customerQuery.getCustomerAccount(db=db,account=payload.accountNumber)
+        if account:
+            res = await externalService.getCustomerCards(setting=setting,account=account.accountNumber)
+            if res:
+                if res['statuscode'] == str(status.HTTP_200_OK):
+                    logger.info(f"Account Cards for {account.accountNumber} response {res}")
+                    return BaseResponse(statusCode=str(status.HTTP_200_OK),statusDescription=SUCCESS,data=res['data'])
+                response.status_code = status.HTTP_400_BAD_REQUEST
+                return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=res["message"])
+            response.status_code = status.HTTP_400_BAD_REQUEST
+            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=FAILED)
+        else:
+            response.status_code = status.HTTP_400_BAD_REQUEST
+            return BaseResponse(statusCode=str(status.HTTP_400_BAD_REQUEST),statusDescription=INVALIDACCOUNT)
     except Exception as ex:
         logger.info(ex)
         response.status_code = status.HTTP_400_BAD_REQUEST
